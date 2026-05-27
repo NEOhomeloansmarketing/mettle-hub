@@ -51,16 +51,14 @@ export async function GET(req: NextRequest) {
 
   const supabase = await createClient()
   const now = new Date()
-  const currentHour = now.getUTCHours()
   const currentDay = now.getUTCDay()
 
-  // Find agents due to run this hour
+  // Runs daily at 8am UTC — pick up all scheduled agents for today
   const { data: candidates } = await supabase
     .from('agents')
     .select('*')
     .eq('enabled', true)
     .eq('schedule_enabled', true)
-    .eq('hour', currentHour)
 
   const results: { id: string; name: string; success: boolean; created?: number; error?: string }[] = []
 
