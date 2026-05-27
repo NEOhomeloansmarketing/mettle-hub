@@ -94,7 +94,7 @@ export default function LoginPage() {
       <div className="login">
         <div className="login__pane">
           <div className="login__mark">
-            <Image src="/ninja-logo.png" alt="Mettle" width={56} height={38} priority />
+            <Image src="/ninja-logo.png" alt="Mettle" width={48} height={32} className="wordmark__ninja" priority />
             <div>
               <div className="login__brand">Mettle</div>
               <div className="login__sub">Marketing Hub</div>
