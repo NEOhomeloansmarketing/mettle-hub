@@ -82,6 +82,7 @@ export async function GET(req: NextRequest) {
           cpl:         cLeads > 0 ? cSpend / cLeads : 0,
         }
       })
+      .filter((c: any) => !c.name.toLowerCase().includes('heloc'))
       .filter((c: any) => c.spend > 0 || c.impressions > 0 || c.status === 'ACTIVE' || c.status === 'IN_PROCESS')
       .sort((a: any, b: any) => b.spend - a.spend)
 
