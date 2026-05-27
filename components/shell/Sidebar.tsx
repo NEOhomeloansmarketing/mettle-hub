@@ -13,6 +13,7 @@ const NAV = [
   { id: 'notes',      label: 'Notes',        icon: 'notes',     href: '/notes' },
   { id: 'blog',       label: 'Blog Engine',  icon: 'blog',      href: '/blog' },
   { id: 'paid',       label: 'Paid Ads',     icon: 'chart-bar', href: '/paid' },
+  { id: 'leads',      label: 'Lead Report',  icon: 'users',     href: '/leads' },
   { id: 'agents',     label: 'AI Agents',    icon: 'agent',     href: '/agents' },
   { id: 'team',       label: 'Team',         icon: 'team',      href: '/team' },
   { id: 'settings',   label: 'Settings',     icon: 'settings',  href: '/settings' },
