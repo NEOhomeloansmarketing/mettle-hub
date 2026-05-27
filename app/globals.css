@@ -991,10 +991,7 @@ button { font-family: inherit; }
 .lr-row--total { background: var(--bg-3); border-top: 2px solid var(--line) !important; }
 .lr-row--total .lr-row__channel { font-weight: 700; color: var(--fg); }
 .lr-row--total .lr-row__count   { font-size: 18px; font-weight: 750; color: var(--fg); }
-.lr-row__channel { font-size: 13.5px; color: var(--fg-2); font-weight: 500; width: 160px; flex-shrink: 0; }
-.lr-row__bar-wrap { flex: 1; height: 6px; background: var(--bg-3); border-radius: 99px; overflow: hidden; }
-.lr-row__bar { height: 100%; background: var(--accent); border-radius: 99px; transition: width 0.4s ease; min-width: 2px; }
-.lr-row--total .lr-row__bar-wrap { display: none; }
+.lr-row__channel { font-size: 13.5px; color: var(--fg-2); font-weight: 500; flex: 1; }
 .lr-row__count { font-size: 15px; font-weight: 700; color: var(--fg); min-width: 28px; text-align: right; flex-shrink: 0; }
 
 /* AI Insights */

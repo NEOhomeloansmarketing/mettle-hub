@@ -90,7 +90,6 @@ export function LeadsView({ isAdmin = false }: { isAdmin?: boolean }) {
     : rows.reduce((s, r) => s + (r.prevCount ?? 0), 0)
   const wowDiff   = prevTotal !== null ? total - prevTotal : null
   const wowPct    = prevTotal ? Math.round(Math.abs((total - prevTotal) / prevTotal) * 100) : null
-  const maxCount  = Math.max(...rows.map(r => r.count), 1)
 
   return (
     <div className="lr-page">
@@ -180,15 +179,11 @@ export function LeadsView({ isAdmin = false }: { isAdmin?: boolean }) {
             {rows.map(r => (
               <li key={r.channel} className={cls('lr-row', r.count === 0 && 'lr-row--zero')}>
                 <span className="lr-row__channel">{r.channel}</span>
-                <div className="lr-row__bar-wrap">
-                  <div className="lr-row__bar" style={{ width: `${Math.round((r.count / maxCount) * 100)}%` }} />
-                </div>
                 <span className="lr-row__count">{r.count}</span>
               </li>
             ))}
             <li className="lr-row lr-row--total">
               <span className="lr-row__channel">Total</span>
-              <div className="lr-row__bar-wrap" />
               <span className="lr-row__count">{total}</span>
             </li>
           </ul>
