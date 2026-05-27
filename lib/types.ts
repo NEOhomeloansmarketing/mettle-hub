@@ -200,6 +200,25 @@ export interface Activity {
   ts: string
 }
 
+export type AgentOutputType = 'task' | 'blog' | 'note' | 'activity'
+
+export interface Agent {
+  id: string
+  name: string
+  description: string
+  system_prompt: string
+  output_type: AgentOutputType
+  channels: string[]
+  use_rosetta: boolean
+  use_laws: boolean
+  schedule_enabled: boolean
+  day_of_week: number | null
+  hour: number
+  last_run: string | null
+  enabled: boolean
+  created_at: string
+}
+
 export const CHANNELS: Record<string, { id: string; label: string; short: string; color: string; soft: string; ink: string }> = {
   CRNA:         { id: 'CRNA',         label: 'CRNA Home Loans',         short: 'CRNA',         color: 'var(--ch-crna)',  soft: 'var(--ch-crna-soft)',  ink: 'var(--ch-crna-ink)' },
   Entrepreneur: { id: 'Entrepreneur', label: 'Entrepreneur Home Loans', short: 'Entrepreneur', color: 'var(--ch-ent)',   soft: 'var(--ch-ent-soft)',   ink: 'var(--ch-ent-ink)' },

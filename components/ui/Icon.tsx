@@ -52,6 +52,8 @@ export function Icon({ name, size = 16, stroke = 1.6, className = '' }: IconProp
     case 'more':         return <svg {...props}><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg>
     case 'arrow-up':     return <svg {...props}><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
     case 'arrow-down':   return <svg {...props}><path d="M12 5v14"/><path d="m5 12 7 7 7-7"/></svg>
+    case 'agent':        return <svg {...props}><rect x="4" y="9" width="16" height="12" rx="3"/><path d="M8 9V7a4 4 0 0 1 8 0v2"/><circle cx="9" cy="15" r="1.5"/><circle cx="15" cy="15" r="1.5"/><path d="M9 19h6"/></svg>
+    case 'play':         return <svg {...props}><polygon points="5 3 19 12 5 21 5 3"/></svg>
     default: return null
   }
 }

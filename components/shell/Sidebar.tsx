@@ -12,6 +12,7 @@ const NAV = [
   { id: 'meetings',   label: 'Meetings',     icon: 'meetings',  href: '/meetings' },
   { id: 'notes',      label: 'Notes',        icon: 'notes',     href: '/notes' },
   { id: 'blog',       label: 'Blog Engine',  icon: 'blog',      href: '/blog' },
+  { id: 'agents',     label: 'AI Agents',    icon: 'agent',     href: '/agents' },
   { id: 'team',       label: 'Team',         icon: 'team',      href: '/team' },
   { id: 'settings',   label: 'Settings',     icon: 'settings',  href: '/settings' },
 ]
