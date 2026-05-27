@@ -88,25 +88,42 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'week_start and counts required' }, { status: 400 })
   }
 
-  const rows = Object.entries(counts)
+  const upsertRows = Object.entries(counts)
     .filter(([, v]) => v > 0)
-    .map(([channel, count]) => ({
-      week_start,
-      source_channel: channel,
-      count,
-    }))
+    .map(([channel, count]) => ({ week_start, source_channel: channel, count }))
 
-  if (rows.length === 0) {
-    return NextResponse.json({ ok: true, saved: 0 })
+  const zeroChannels = Object.entries(counts)
+    .filter(([, v]) => v === 0)
+    .map(([channel]) => channel)
+
+  // Delete rows set to 0, upsert the rest
+  const ops: Promise<any>[] = []
+
+  if (zeroChannels.length > 0) {
+    ops.push(
+      supabase
+        .from('lead_weekly_totals')
+        .delete()
+        .eq('week_start', week_start)
+        .in('source_channel', zeroChannels)
+    )
   }
 
-  const { error } = await supabase
-    .from('lead_weekly_totals')
-    .upsert(rows, { onConflict: 'week_start,source_channel' })
+  if (upsertRows.length > 0) {
+    ops.push(
+      supabase
+        .from('lead_weekly_totals')
+        .upsert(upsertRows, { onConflict: 'week_start,source_channel' })
+    )
+  }
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (ops.length === 0) return NextResponse.json({ ok: true, saved: 0 })
 
-  return NextResponse.json({ ok: true, saved: rows.length })
+  const results = await Promise.all(ops)
+  const err = results.find(r => r.error)?.error
+  if (err) return NextResponse.json({ error: err.message }, { status: 500 })
+
+  return NextResponse.json({ ok: true, saved: upsertRows.length })
 }
 
 // PATCH — assign an unmapped source to a channel
