@@ -54,6 +54,33 @@ const STATUS_COLOR: Record<string, string> = {
   WITH_ISSUES: 'err',
 }
 
+// Higher = better for these metrics (green when up)
+const HIGHER_IS_BETTER: Record<string, boolean | null> = {
+  spend: null, impressions: true, reach: true, clicks: true,
+  ctr: true, cpm: false, cpc: false, leads: true, cpl: false,
+}
+
+function pctChange(curr: number, prev: number): number | null {
+  if (!prev || !curr) return null
+  return ((curr - prev) / prev) * 100
+}
+
+function TrendBadge({ metric, curr, prevVal }: { metric: string; curr: number; prevVal: number | undefined }) {
+  if (prevVal === undefined || prevVal === null) return null
+  const chg = pctChange(curr, prevVal)
+  if (chg === null) return null
+  const abs   = Math.abs(chg)
+  if (abs < 0.5) return <span className="trend trend--flat">—</span>
+  const up    = chg > 0
+  const good  = HIGHER_IS_BETTER[metric]
+  const color = good === null ? 'neutral' : (up === (good === true) ? 'good' : 'bad')
+  return (
+    <span className={`trend trend--${color}`}>
+      {up ? '↑' : '↓'} {abs.toFixed(1)}%
+    </span>
+  )
+}
+
 function money(n: number) {
   if (!n) return '—'
   return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -74,6 +101,7 @@ function pct(n: number) { return n ? n.toFixed(2) + '%' : '—' }
 export function PaidView() {
   const [preset, setPreset]         = useState<Preset>('last_30d')
   const [overview, setOverview]     = useState<Overview | null>(null)
+  const [prev, setPrev]             = useState<Overview | null>(null)
   const [campaigns, setCampaigns]   = useState<Campaign[]>([])
   const [loading, setLoading]       = useState(true)
   const [error, setError]           = useState<string | null>(null)
@@ -123,6 +151,7 @@ export function PaidView() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to load stats')
       setOverview(data.overview)
+      setPrev(data.prev ?? null)
       setCampaigns(data.campaigns)
       loadInsights(data.overview, data.campaigns, p)
     } catch (e: any) {
@@ -192,6 +221,9 @@ export function PaidView() {
                 <>
                   <div className="paid-hero__label">{labels[key]}</div>
                   <div className="paid-hero__value">{values[key]}</div>
+                  {prev && ov && (
+                    <TrendBadge metric={key} curr={(ov as any)[key]} prevVal={(prev as any)[key]} />
+                  )}
                 </>
               )}
             </div>
@@ -202,17 +234,20 @@ export function PaidView() {
       {/* ── Secondary metrics: 5 supporting stats ──── */}
       <div className="paid-sec-row">
         {[
-          { key: 'impressions', label: 'Impressions',    val: num(ov?.impressions ?? 0) },
-          { key: 'reach',       label: 'Reach',          val: num(ov?.reach       ?? 0) },
-          { key: 'clicks',      label: 'Clicks',         val: num(ov?.clicks      ?? 0) },
-          { key: 'cpm',         label: 'CPM',            val: money(ov?.cpm       ?? 0) },
-          { key: 'cpc',         label: 'CPC',            val: money(ov?.cpc       ?? 0) },
+          { key: 'impressions', label: 'Impressions', val: num(ov?.impressions ?? 0) },
+          { key: 'reach',       label: 'Reach',       val: num(ov?.reach       ?? 0) },
+          { key: 'clicks',      label: 'Clicks',      val: num(ov?.clicks      ?? 0) },
+          { key: 'cpm',         label: 'CPM',         val: money(ov?.cpm       ?? 0) },
+          { key: 'cpc',         label: 'CPC',         val: money(ov?.cpc       ?? 0) },
         ].map(s => (
           <div key={s.key} className={cls('paid-sec', loading && 'paid-sec--skel')}>
             {!loading && (
               <>
                 <div className="paid-sec__label">{s.label}</div>
                 <div className="paid-sec__value">{s.val}</div>
+                {prev && ov && (
+                  <TrendBadge metric={s.key} curr={(ov as any)[s.key]} prevVal={(prev as any)[s.key]} />
+                )}
               </>
             )}
           </div>

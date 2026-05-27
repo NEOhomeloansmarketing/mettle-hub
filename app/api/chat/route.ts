@@ -69,6 +69,16 @@ const TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'query_paid_stats',
+    description: 'Fetch live Meta Ads performance data. Use when the user asks about paid ads, campaigns, spend, leads, CTR, or any ad performance metrics.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        preset: { type: 'string', enum: ['last_7d', 'last_30d', 'last_90d'], description: 'Time period. Default last_30d.' },
+      },
+    },
+  },
+  {
     name: 'create_blog_draft',
     description: 'Generate a blog post draft for a channel. It will appear in Blog → Pending Review.',
     input_schema: {
@@ -202,6 +212,18 @@ ${docMap['lawsofmarketing'] ? `FIVE LAWS OF MARKETING:\n${(docMap['lawsofmarketi
           }).select().single()
           actions.push({ type: 'create_note', label: `Created note: "${inp.title}"`, ok: true })
           result = { success: true, note_id: data?.id }
+
+        } else if (tu.name === 'query_paid_stats') {
+          const preset = inp.preset || 'last_30d'
+          const host     = req.headers.get('host') || 'localhost:3000'
+          const protocol = host.startsWith('localhost') ? 'http' : 'https'
+          const metaRes  = await fetch(
+            `${protocol}://${host}/api/meta/stats?preset=${preset}`,
+            { headers: { cookie: req.headers.get('cookie') || '' } }
+          )
+          const metaData = await metaRes.json()
+          if (metaData.error) throw new Error(metaData.error)
+          result = metaData
 
         } else if (tu.name === 'create_blog_draft') {
           const ch = inp.channel as string
