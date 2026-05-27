@@ -63,15 +63,10 @@ create policy "approved read"  on lead_source_queue    for select using (is_appr
 create policy "approved write" on lead_source_queue    for all    using (is_approved());
 
 -- Seed known source mappings
+-- Keyword matching handles most sources automatically in the webhook.
+-- These exact mappings are kept as fallbacks / user-assigned overrides.
 insert into lead_source_mappings (bntouch_source, display_channel) values
   ('NEOxBETR',         'Better Leads'),
-  ('CRNA',             'CRNA'),
-  ('Physician Site',   'Physician Site'),
-  ('Physician ADs',    'Physician ADs'),
-  ('Entrepreneur',     'Entrepreneur'),
-  ('WCI',              'WCI'),
-  ('Past Client',      'Past Client'),
-  ('Partner Referral', 'Partner Referral'),
-  ('Tax Hive',         'Tax Hive'),
-  ('Wealth Juice',     'Wealth Juice')
+  ('Past Client',      'Past Client / Referral'),
+  ('Partner Referral', 'Past Client / Referral')
 on conflict (bntouch_source) do nothing;

@@ -18,7 +18,7 @@ interface QueueItem {
 const ALL_CHANNELS = [
   'CRNA', 'Entrepreneur', 'Physician Site', 'Physician ADs',
   'Better Leads', 'WCI', 'Tax Hive', 'Wealth Juice',
-  'Past Client', 'Partner Referral',
+  'Past Client / Referral',
 ]
 
 function formatWeek(w: string) {

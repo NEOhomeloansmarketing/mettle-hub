@@ -10,8 +10,7 @@ const ALL_CHANNELS = [
   'WCI',
   'Tax Hive',
   'Wealth Juice',
-  'Past Client',
-  'Partner Referral',
+  'Past Client / Referral',
 ]
 
 // GET — returns all weeks + data for selected week + previous week
