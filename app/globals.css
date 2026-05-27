@@ -716,7 +716,7 @@ button { font-family: inherit; }
 .login__art-grid { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(7, 1fr); gap: 24px; padding: 60px; align-content: center; justify-items: center; pointer-events: none; }
 .login__art-grid span { width: 14px; height: 14px; border-radius: 4px; background: oklch(0.66 0.18 var(--accent-hue) / 0.18); animation: artPulse 3s ease-in-out infinite; }
 .login__art-text { position: relative; max-width: 480px; }
-.login__ninja { position: absolute; bottom: 120px; right: -40px; object-fit: contain; opacity: 0.92; pointer-events: none; }
+.login__ninja { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); object-fit: contain; opacity: 0.92; pointer-events: none; }
 .login__art-kicker { font-size: 11px; text-transform: uppercase; letter-spacing: 0.10em; color: var(--muted); }
 .login__art-name { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; margin: 4px 0 12px; }
 .login__art-tagline { color: var(--fg-2); font-size: 14px; line-height: 1.6; max-width: 38ch; }
