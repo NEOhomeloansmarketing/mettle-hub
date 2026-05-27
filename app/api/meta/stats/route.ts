@@ -30,37 +30,13 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const base = 'https://graph.facebook.com/v21.0'
+    const base   = 'https://graph.facebook.com/v21.0'
     const fields = 'spend,impressions,reach,clicks,ctr,cpm,cpc,actions'
 
-    const [accountRes, campaignsRes] = await Promise.all([
-      fetch(`${base}/${accountId}/insights?fields=${fields}&date_preset=${preset}&access_token=${token}`),
-      fetch(`${base}/${accountId}/campaigns?fields=name,effective_status,insights.date_preset(${preset}){${fields}}&access_token=${token}&limit=50`),
-    ])
+    const campaignsRes  = await fetch(`${base}/${accountId}/campaigns?fields=name,effective_status,insights.date_preset(${preset}){${fields}}&access_token=${token}&limit=50`)
+    const campaignsData = await campaignsRes.json()
 
-    const [accountData, campaignsData] = await Promise.all([
-      accountRes.json(),
-      campaignsRes.json(),
-    ])
-
-    if (accountData.error) throw new Error(accountData.error.message)
     if (campaignsData.error) throw new Error(campaignsData.error.message)
-
-    const ov = accountData.data?.[0] ?? {}
-    const leads = getLeads(ov.actions)
-    const spend = parseFloat(ov.spend ?? '0')
-
-    const overview = {
-      spend,
-      impressions: parseInt(ov.impressions ?? '0'),
-      reach:       parseInt(ov.reach       ?? '0'),
-      clicks:      parseInt(ov.clicks      ?? '0'),
-      ctr:         parseFloat(ov.ctr       ?? '0'),
-      cpm:         parseFloat(ov.cpm       ?? '0'),
-      cpc:         parseFloat(ov.cpc       ?? '0'),
-      leads,
-      cpl: leads > 0 ? spend / leads : 0,
-    }
 
     const campaigns = (campaignsData.data ?? [])
       .map((c: any) => {
@@ -85,6 +61,25 @@ export async function GET(req: NextRequest) {
       .filter((c: any) => !c.name.toLowerCase().includes('heloc'))
       .filter((c: any) => c.spend > 0 || c.impressions > 0 || c.status === 'ACTIVE' || c.status === 'IN_PROCESS')
       .sort((a: any, b: any) => b.spend - a.spend)
+
+    // Build overview from filtered campaigns so HELOC is excluded from totals
+    const totSpend       = campaigns.reduce((s: number, c: any) => s + c.spend, 0)
+    const totImpressions = campaigns.reduce((s: number, c: any) => s + c.impressions, 0)
+    const totReach       = campaigns.reduce((s: number, c: any) => s + c.reach, 0)
+    const totClicks      = campaigns.reduce((s: number, c: any) => s + c.clicks, 0)
+    const totLeads       = campaigns.reduce((s: number, c: any) => s + c.leads, 0)
+
+    const overview = {
+      spend:       totSpend,
+      impressions: totImpressions,
+      reach:       totReach,
+      clicks:      totClicks,
+      ctr:         totImpressions > 0 ? (totClicks / totImpressions) * 100 : 0,
+      cpm:         totImpressions > 0 ? (totSpend / totImpressions) * 1000 : 0,
+      cpc:         totClicks > 0 ? totSpend / totClicks : 0,
+      leads:       totLeads,
+      cpl:         totLeads > 0 ? totSpend / totLeads : 0,
+    }
 
     return NextResponse.json({ overview, campaigns })
   } catch (err: any) {
