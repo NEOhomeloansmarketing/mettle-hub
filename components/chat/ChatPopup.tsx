@@ -97,8 +97,9 @@ export function ChatPopup() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: next }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed')
+      let data: any
+      try { data = await res.json() } catch { throw new Error('Server returned an empty response — please try again') }
+      if (!res.ok) throw new Error(data?.error || `Server error ${res.status}`)
       setMessages([...next, { role: 'assistant', content: data.text, actions: data.actions ?? [] }])
     } catch (err: any) {
       setMessages([...next, { role: 'assistant', content: `Sorry, something went wrong: ${err.message}` }])
