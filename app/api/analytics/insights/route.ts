@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   try {
-    const { site, current, prev, sources, preset } = await req.json()
+    const { site, current, prev, sources, landingPages, devices, newVsReturning, topPages, preset } = await req.json()
 
     if (!current || current.sessions === 0) {
       return NextResponse.json({ insights: [] })
@@ -27,23 +27,43 @@ export async function POST(req: NextRequest) {
     const ctx = SITE_CONTEXT[site] ?? site
     const periodLabel = preset === '7d' ? 'last 7 days' : preset === '28d' ? 'last 28 days' : 'last 90 days'
 
-    function pct(a: number, b: number) {
+    function chg(a: number, b: number) {
       if (!b) return 'no prior data'
       const d = Math.round(((a - b) / b) * 100)
       return `${d >= 0 ? '+' : ''}${d}%`
     }
 
     const metricsLines = [
-      `Sessions:    ${current.sessions.toLocaleString()} (${pct(current.sessions, prev?.sessions)})`,
-      `Users:       ${current.users.toLocaleString()} (${pct(current.users, prev?.users)})`,
-      `Pageviews:   ${current.pageviews.toLocaleString()} (${pct(current.pageviews, prev?.pageviews)})`,
-      `Bounce Rate: ${(current.bounceRate * 100).toFixed(1)}% (${pct(current.bounceRate, prev?.bounceRate)})`,
-      `Avg Duration:${Math.round(current.avgDuration)}s (${pct(current.avgDuration, prev?.avgDuration)})`,
+      `Sessions:        ${current.sessions.toLocaleString()} (${chg(current.sessions, prev?.sessions)})`,
+      `Users:           ${current.users.toLocaleString()} (${chg(current.users, prev?.users)})`,
+      `New Users:       ${current.newUsers?.toLocaleString() ?? '?'}`,
+      `Pageviews:       ${current.pageviews.toLocaleString()} (${chg(current.pageviews, prev?.pageviews)})`,
+      `Engagement Rate: ${(current.engagementRate * 100).toFixed(1)}% (${chg(current.engagementRate, prev?.engagementRate)})`,
+      `Bounce Rate:     ${(current.bounceRate * 100).toFixed(1)}% (${chg(current.bounceRate, prev?.bounceRate)})`,
+      `Avg Duration:    ${Math.round(current.avgDuration)}s (${chg(current.avgDuration, prev?.avgDuration)})`,
     ].join('\n')
 
-    const sourceLines = sources
-      .slice(0, 6)
+    const sourceLines = (sources ?? [])
+      .slice(0, 8)
       .map((s: any) => `  ${s.channel}: ${s.sessions} sessions`)
+      .join('\n')
+
+    const landingLines = (landingPages ?? [])
+      .slice(0, 6)
+      .map((p: any) => `  ${p.path}: ${p.sessions} sessions, ${(p.bounceRate * 100).toFixed(0)}% bounce, ${Math.round(p.avgDuration)}s avg`)
+      .join('\n')
+
+    const deviceLines = (devices ?? [])
+      .map((d: any) => `  ${d.device}: ${d.sessions} sessions, ${(d.engagementRate * 100).toFixed(0)}% engaged`)
+      .join('\n')
+
+    const nvrLines = (newVsReturning ?? [])
+      .map((d: any) => `  ${d.type}: ${d.sessions} sessions, ${(d.engagementRate * 100).toFixed(0)}% engaged`)
+      .join('\n')
+
+    const topPageLines = (topPages ?? [])
+      .slice(0, 6)
+      .map((p: any) => `  "${p.title}": ${p.views} views, ${Math.round(p.avgDuration)}s avg, ${(p.engagementRate * 100).toFixed(0)}% engaged`)
       .join('\n')
 
     const prompt = `You are a digital marketing strategist specializing in SEO, AEO (Answer Engine Optimization), GEO (Generative Engine Optimization), and LLM Optimization for niche professional financial services.
@@ -53,38 +73,53 @@ CONTEXT: ${ctx}
 
 NEO Home Loans is a mortgage company serving high-earning professionals. Their competitive advantage is niche expertise — physicians, CRNAs, and entrepreneurs face unique mortgage challenges that most lenders don't understand.
 
-TRAFFIC DATA (${periodLabel}):
+PERIOD: ${periodLabel}
+
+OVERALL METRICS:
 ${metricsLines}
 
-TOP CHANNELS:
+TRAFFIC BY CHANNEL:
 ${sourceLines || '  No channel data'}
 
-Provide 5–6 sharp, actionable insights across these categories:
+TOP LANDING PAGES (entry points):
+${landingLines || '  No landing page data'}
 
-SEO — Traditional search: keyword opportunities, content gaps, technical improvements, backlinks
-AEO — Answer Engine Optimization: structured data (FAQ schema, HowTo, Review), featured snippets, Google AI Overview optimization
-GEO — Generative Engine Optimization: content strategies to appear in AI-generated search results (Perplexity, Bing Copilot, SGE)
-LLM — LLM Optimization: tactics to get NEO mentioned when people ask ChatGPT/Claude "best physician mortgage lender" or "CRNA home loan"
-PERF — Conversion: improve bounce rate, session depth, and lead conversion based on the metrics
-CONTENT — Content strategy: specific topics, formats, and angles to create for this audience
+DEVICE BREAKDOWN:
+${deviceLines || '  No device data'}
+
+NEW vs RETURNING VISITORS:
+${nvrLines || '  No data'}
+
+TOP CONTENT PAGES (by views):
+${topPageLines || '  No content data'}
+
+Provide 6–7 sharp, actionable insights across these categories:
+
+SEO — Traditional search: keyword opportunities, content gaps, page-specific improvements, technical SEO, internal linking
+AEO — Answer Engine Optimization: FAQ schema, HowTo schema, featured snippet optimization, Google AI Overview targeting
+GEO — Generative Engine Optimization: content strategies to rank in AI-generated answers (Perplexity, Bing Copilot, ChatGPT Search)
+LLM — LLM Optimization: tactics to get NEO mentioned when people ask AI "best physician mortgage lender" or "CRNA home loan"
+PERF — Performance: improve bounce rate, engagement, session depth, and conversion based on device/landing page data
+CONTENT — Content strategy: specific topics, formats, and angles based on what pages/channels are performing
 
 Rules:
 - Be highly specific to the ${site} audience, not generic
-- Reference actual metric numbers in the body
+- Reference actual metric numbers, page paths, or channel names from the data
 - The "action" must be a concrete task someone can do this week (starts with a verb, 8–15 words)
-- If traffic is strong, acknowledge it but still find improvement angles
+- If a landing page has high bounce rate, call it out specifically
+- If mobile traffic is dominant, recommend mobile-first improvements
 - Do NOT make rate or APR claims
 
 Return ONLY a valid JSON array. Each object must have exactly:
 - "category": "seo" | "aeo" | "geo" | "llm" | "perf" | "content"
 - "type": "good" | "warn" | "tip"
 - "headline": max 6 words
-- "body": 1–2 sentences with specific context and numbers
+- "body": 1–2 sentences with specific numbers or page names from the data
 - "action": the task title (verb-first, 8–15 words)`
 
     const msg = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1200,
+      max_tokens: 1500,
       messages: [{ role: 'user', content: prompt }],
     })
 

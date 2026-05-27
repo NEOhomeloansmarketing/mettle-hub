@@ -10,6 +10,35 @@ interface SiteMetrics {
   pageviews: number
   bounceRate: number
   avgDuration: number
+  engagementRate: number
+  newUsers: number
+}
+
+interface LandingPage {
+  path: string
+  sessions: number
+  bounceRate: number
+  avgDuration: number
+  engagementRate: number
+}
+
+interface Device {
+  device: string
+  sessions: number
+  engagementRate: number
+}
+
+interface UserType {
+  type: string
+  sessions: number
+  engagementRate: number
+}
+
+interface TopPage {
+  title: string
+  views: number
+  avgDuration: number
+  engagementRate: number
 }
 
 interface SiteData {
@@ -18,6 +47,10 @@ interface SiteData {
   current: SiteMetrics | null
   prev: SiteMetrics | null
   sources: { channel: string; sessions: number }[]
+  landingPages: LandingPage[]
+  devices: Device[]
+  newVsReturning: UserType[]
+  topPages: TopPage[]
   error: string | null
 }
 
@@ -48,6 +81,12 @@ const CATEGORY_META: Record<string, { label: string; cls: string }> = {
   content: { label: 'Content', cls: 'cat--content' },
 }
 
+const DEVICE_ICON: Record<string, string> = {
+  mobile:  'mobile',
+  desktop: 'monitor',
+  tablet:  'tablet',
+}
+
 function formatDuration(secs: number) {
   const m = Math.floor(secs / 60)
   const s = Math.floor(secs % 60)
@@ -70,6 +109,12 @@ function TrendBadge({ current, prev, higherIsBetter = true }: {
       {pct >= 0 ? '↑' : '↓'} {Math.abs(pct)}%
     </span>
   )
+}
+
+function shortenPath(path: string) {
+  // Remove query string, keep first 50 chars
+  const clean = path.split('?')[0]
+  return clean.length > 48 ? clean.slice(0, 46) + '…' : clean
 }
 
 export function AnalyticsView() {
@@ -96,10 +141,14 @@ export function AnalyticsView() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          site:    site.name,
-          current: site.current,
-          prev:    site.prev,
-          sources: site.sources,
+          site:           site.name,
+          current:        site.current,
+          prev:           site.prev,
+          sources:        site.sources,
+          landingPages:   site.landingPages,
+          devices:        site.devices,
+          newVsReturning: site.newVsReturning,
+          topPages:       site.topPages,
           preset,
         }),
       })
@@ -117,7 +166,6 @@ export function AnalyticsView() {
       const data = await res.json()
       const loaded: SiteData[] = data.sites ?? []
       setSites(loaded)
-      // Auto-load insights for the active tab
       const active = loaded[activeTab]
       if (active) loadInsights(activeTab, active)
     } catch { /* fail silently */ }
@@ -126,7 +174,6 @@ export function AnalyticsView() {
 
   useEffect(() => { load(preset) }, [preset])
 
-  // Load insights when tab changes if not already loaded
   useEffect(() => {
     const site = sites[activeTab]
     if (site && insights[activeTab] === undefined && !aiLoading[activeTab]) {
@@ -139,7 +186,6 @@ export function AnalyticsView() {
   }
 
   async function createTask(key: string, insight: Insight) {
-    const ownerId = taskOwner[key] ?? ''
     setTaskState(p => ({ ...p, [key]: 'saving' }))
     try {
       await fetch('/api/analytics/tasks', {
@@ -148,7 +194,7 @@ export function AnalyticsView() {
         body: JSON.stringify({
           title:       insight.action,
           description: `${insight.headline} — ${insight.body}`,
-          assignee_id: ownerId || null,
+          assignee_id: taskOwner[key] || null,
         }),
       })
       setTaskState(p => ({ ...p, [key]: 'done' }))
@@ -157,18 +203,17 @@ export function AnalyticsView() {
     }
   }
 
-  const site     = sites[activeTab]
-  const TAB_NAMES = sites.length > 0
+  const site          = sites[activeTab]
+  const siteInsights  = insights[activeTab] ?? null
+  const siteAiLoading = aiLoading[activeTab] ?? false
+  const TAB_NAMES     = sites.length > 0
     ? sites.map(s => s.name)
     : ['Medical Professional', 'CRNA', 'Entrepreneur']
-
-  const siteInsights = insights[activeTab] ?? null
-  const siteAiLoading = aiLoading[activeTab] ?? false
 
   return (
     <div className="an-page">
 
-      {/* Header */}
+      {/* ── Header ───────────────────────────────────── */}
       <div className="an-header">
         <div className="an-header__left">
           <div className="an-header__icon"><Icon name="chart-line" size={16} /></div>
@@ -189,7 +234,7 @@ export function AnalyticsView() {
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* ── Tabs ─────────────────────────────────────── */}
       <div className="an-tabs">
         {TAB_NAMES.map((name, i) => (
           <button key={i} className={cls('an-tab', i === activeTab && 'an-tab--active')} onClick={() => setActiveTab(i)}>
@@ -198,7 +243,7 @@ export function AnalyticsView() {
         ))}
       </div>
 
-      {/* Content */}
+      {/* ── Content ──────────────────────────────────── */}
       {loading ? (
         <div className="an-loading">
           <div className="an-skel an-skel--metrics" />
@@ -212,14 +257,15 @@ export function AnalyticsView() {
         </div>
       ) : site?.current ? (
         <>
-          {/* Metric cards */}
+          {/* ── 6 Metric cards ─────────────────────── */}
           <div className="an-metrics">
             {[
-              { label: 'Sessions',     val: site.current.sessions.toLocaleString(),              cmp: site.current.sessions,     prev: site.prev?.sessions     ?? 0, hib: true  },
-              { label: 'Users',        val: site.current.users.toLocaleString(),                 cmp: site.current.users,        prev: site.prev?.users        ?? 0, hib: true  },
-              { label: 'Pageviews',    val: site.current.pageviews.toLocaleString(),             cmp: site.current.pageviews,    prev: site.prev?.pageviews    ?? 0, hib: true  },
-              { label: 'Bounce Rate',  val: `${(site.current.bounceRate * 100).toFixed(1)}%`,    cmp: site.current.bounceRate,   prev: site.prev?.bounceRate   ?? 0, hib: false },
-              { label: 'Avg Duration', val: formatDuration(site.current.avgDuration),            cmp: site.current.avgDuration,  prev: site.prev?.avgDuration  ?? 0, hib: true  },
+              { label: 'Sessions',        val: site.current.sessions.toLocaleString(),              cmp: site.current.sessions,        prev: site.prev?.sessions        ?? 0, hib: true  },
+              { label: 'Users',           val: site.current.users.toLocaleString(),                 cmp: site.current.users,           prev: site.prev?.users           ?? 0, hib: true  },
+              { label: 'Pageviews',       val: site.current.pageviews.toLocaleString(),             cmp: site.current.pageviews,       prev: site.prev?.pageviews       ?? 0, hib: true  },
+              { label: 'Engagement Rate', val: `${(site.current.engagementRate * 100).toFixed(1)}%`, cmp: site.current.engagementRate,  prev: site.prev?.engagementRate  ?? 0, hib: true  },
+              { label: 'Bounce Rate',     val: `${(site.current.bounceRate * 100).toFixed(1)}%`,    cmp: site.current.bounceRate,      prev: site.prev?.bounceRate      ?? 0, hib: false },
+              { label: 'Avg Duration',    val: formatDuration(site.current.avgDuration),            cmp: site.current.avgDuration,     prev: site.prev?.avgDuration     ?? 0, hib: true  },
             ].map(m => (
               <div key={m.label} className="an-metric">
                 <div className="an-metric__label">{m.label}</div>
@@ -229,23 +275,150 @@ export function AnalyticsView() {
             ))}
           </div>
 
-          {/* Traffic sources + AI insights side by side */}
+          {/* ── Body: data column + insights ───────── */}
           <div className="an-body-row">
-            <div className="an-card">
-              <div className="an-card__head">Traffic by Channel</div>
-              <ul className="an-list">
-                {site.sources.length > 0 ? site.sources.map(s => (
-                  <li key={s.channel} className="an-row">
-                    <span className="an-row__channel">{s.channel}</span>
-                    <span className="an-row__count">{s.sessions.toLocaleString()}</span>
-                  </li>
-                )) : (
-                  <li className="an-row an-row--empty">No channel data available</li>
-                )}
-              </ul>
+
+            {/* Left: stacked data panels */}
+            <div className="an-data-col">
+
+              {/* Traffic channels */}
+              <div className="an-card">
+                <div className="an-card__head">Traffic by Channel</div>
+                <ul className="an-list">
+                  {site.sources.length > 0 ? site.sources.map(s => {
+                    const total = site.sources.reduce((a, b) => a + b.sessions, 0)
+                    const pct   = total > 0 ? Math.round((s.sessions / total) * 100) : 0
+                    return (
+                      <li key={s.channel} className="an-row">
+                        <span className="an-row__channel">{s.channel}</span>
+                        <div className="an-row__right">
+                          <div className="an-bar-wrap">
+                            <div className="an-bar" style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="an-row__count">{s.sessions.toLocaleString()}</span>
+                        </div>
+                      </li>
+                    )
+                  }) : (
+                    <li className="an-row an-row--empty">No channel data</li>
+                  )}
+                </ul>
+              </div>
+
+              {/* Devices + New vs Returning */}
+              <div className="an-panels-2">
+
+                {/* Devices */}
+                <div className="an-card">
+                  <div className="an-card__head">Devices</div>
+                  {site.devices.length > 0 ? (() => {
+                    const total = site.devices.reduce((a, b) => a + b.sessions, 0)
+                    return site.devices.map(d => {
+                      const pct = total > 0 ? Math.round((d.sessions / total) * 100) : 0
+                      return (
+                        <div key={d.device} className="an-dev-row">
+                          <span className="an-dev-name">{d.device}</span>
+                          <div className="an-dev-bar-wrap">
+                            <div className="an-dev-bar" style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="an-dev-pct">{pct}%</span>
+                        </div>
+                      )
+                    })
+                  })() : (
+                    <div className="an-panel-empty">No device data</div>
+                  )}
+                </div>
+
+                {/* New vs Returning */}
+                <div className="an-card">
+                  <div className="an-card__head">New vs Returning</div>
+                  {site.newVsReturning.length > 0 ? (() => {
+                    const total = site.newVsReturning.reduce((a, b) => a + b.sessions, 0)
+                    return site.newVsReturning.map(d => {
+                      const pct = total > 0 ? Math.round((d.sessions / total) * 100) : 0
+                      const label = d.type === 'new' ? 'New visitors' : 'Returning'
+                      return (
+                        <div key={d.type} className="an-nv-row">
+                          <div className="an-nv-left">
+                            <span className="an-nv-label">{label}</span>
+                            <span className="an-nv-sub">{(d.engagementRate * 100).toFixed(0)}% engaged</span>
+                          </div>
+                          <div className="an-nv-right">
+                            <span className="an-nv-pct">{pct}%</span>
+                            <span className="an-nv-count">{d.sessions.toLocaleString()}</span>
+                          </div>
+                        </div>
+                      )
+                    })
+                  })() : (
+                    <div className="an-panel-empty">No data</div>
+                  )}
+                </div>
+
+              </div>
+
+              {/* Landing pages table */}
+              {site.landingPages.length > 0 && (
+                <div className="an-card">
+                  <div className="an-card__head">Top Landing Pages</div>
+                  <div className="an-table-scroll">
+                    <table className="an-lp-table">
+                      <thead>
+                        <tr>
+                          <th>Page</th>
+                          <th className="r">Sessions</th>
+                          <th className="r">Bounce</th>
+                          <th className="r">Avg Time</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {site.landingPages.slice(0, 8).map((lp, i) => (
+                          <tr key={i}>
+                            <td><span className="an-lp-path" title={lp.path}>{shortenPath(lp.path)}</span></td>
+                            <td className="an-lp-num">{lp.sessions.toLocaleString()}</td>
+                            <td className="an-lp-muted">{(lp.bounceRate * 100).toFixed(0)}%</td>
+                            <td className="an-lp-muted">{formatDuration(lp.avgDuration)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Top content pages */}
+              {site.topPages.length > 0 && (
+                <div className="an-card">
+                  <div className="an-card__head">Top Content Pages</div>
+                  <div className="an-table-scroll">
+                    <table className="an-lp-table">
+                      <thead>
+                        <tr>
+                          <th>Page Title</th>
+                          <th className="r">Views</th>
+                          <th className="r">Avg Time</th>
+                          <th className="r">Engaged</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {site.topPages.slice(0, 8).map((p, i) => (
+                          <tr key={i}>
+                            <td><span className="an-page-title" title={p.title}>{p.title.length > 52 ? p.title.slice(0, 50) + '…' : p.title}</span></td>
+                            <td className="an-lp-num">{p.views.toLocaleString()}</td>
+                            <td className="an-lp-muted">{formatDuration(p.avgDuration)}</td>
+                            <td className="an-lp-muted">{(p.engagementRate * 100).toFixed(0)}%</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
             </div>
 
-            {/* AI Insights panel */}
+            {/* Right: AI Insights */}
             <div className="an-insights">
               <div className="an-insights__head">
                 <Icon name="sparkle" size={13} />
@@ -260,7 +433,7 @@ export function AnalyticsView() {
 
               {siteAiLoading && (
                 <div className="an-insights__loading">
-                  {[1,2,3].map(i => <div key={i} className="an-iskel" />)}
+                  {[1,2,3,4].map(i => <div key={i} className="an-iskel" />)}
                 </div>
               )}
 
@@ -316,9 +489,7 @@ export function AnalyticsView() {
               )}
 
               {!siteAiLoading && !siteInsights && (
-                <div className="an-insights__empty">
-                  <p>No insights yet.</p>
-                </div>
+                <div className="an-insights__empty"><p>No insights yet.</p></div>
               )}
             </div>
           </div>
