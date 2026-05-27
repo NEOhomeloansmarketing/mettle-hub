@@ -5,9 +5,16 @@ import { Icon } from '@/components/ui/Icon'
 import { cls } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 
+interface Action {
+  type: string
+  label: string
+  ok: boolean
+}
+
 interface Message {
   role: 'user' | 'assistant'
   content: string
+  actions?: Action[]
 }
 
 function TypingDots() {
@@ -16,6 +23,14 @@ function TypingDots() {
       <span /><span /><span />
     </div>
   )
+}
+
+const ACTION_ICONS: Record<string, string> = {
+  create_task: '✓',
+  update_task: '↺',
+  list_tasks: '⊞',
+  create_note: '📝',
+  create_blog_draft: '✍',
 }
 
 function MessageBubble({ msg }: { msg: Message }) {
@@ -27,10 +42,22 @@ function MessageBubble({ msg }: { msg: Message }) {
           <Icon name="sparkle" size={12} />
         </div>
       )}
-      <div className="chat-msg__bubble">
-        {msg.content.split('\n').map((line, i) => (
-          <span key={i}>{line}{i < msg.content.split('\n').length - 1 && <br />}</span>
-        ))}
+      <div className="chat-msg__body">
+        <div className="chat-msg__bubble">
+          {msg.content.split('\n').map((line, i) => (
+            <span key={i}>{line}{i < msg.content.split('\n').length - 1 && <br />}</span>
+          ))}
+        </div>
+        {msg.actions && msg.actions.length > 0 && (
+          <div className="chat-actions">
+            {msg.actions.map((a, i) => (
+              <div key={i} className={cls('chat-action-chip', a.ok ? 'chat-action-chip--ok' : 'chat-action-chip--err')}>
+                <span className="chat-action-chip__icon">{a.ok ? (ACTION_ICONS[a.type] ?? '✓') : '✕'}</span>
+                {a.label}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -72,7 +99,7 @@ export function ChatPopup() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed')
-      setMessages([...next, { role: 'assistant', content: data.text }])
+      setMessages([...next, { role: 'assistant', content: data.text, actions: data.actions ?? [] }])
     } catch (err: any) {
       setMessages([...next, { role: 'assistant', content: `Sorry, something went wrong: ${err.message}` }])
     } finally {
@@ -159,13 +186,13 @@ export function ChatPopup() {
               <div className="chat-empty">
                 <div className="chat-empty__icon"><Icon name="sparkle" size={28} /></div>
                 <div className="chat-empty__title">What can I help with?</div>
-                <div className="chat-empty__sub">Ask anything about your brand, channels, content strategy, or get copy written in your brand voice.</div>
+                <div className="chat-empty__sub">Ask questions, get copy in your brand voice, or take action — create tasks, draft blog posts, save notes, and more.</div>
                 <div className="chat-empty__prompts">
                   {[
-                    'Write a LinkedIn post for a CRNA considering buying their first home',
+                    'Create a High priority task: Write Instagram captions for CRNA channel',
+                    'Draft a blog post for the Physician channel',
                     'What makes our Entrepreneur channel different from competitors?',
-                    'Give me 5 blog post ideas for the Physician channel this month',
-                    'Rewrite this headline in our brand voice: "Get a mortgage today"',
+                    'Give me 5 blog post ideas for the CRNA channel this month',
                   ].map(p => (
                     <button key={p} className="chat-prompt-chip" onClick={() => { setInput(p) }}>
                       {p}
