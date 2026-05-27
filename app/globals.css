@@ -971,15 +971,17 @@ button { font-family: inherit; }
 .lr-queue-chip:hover { background: oklch(0.38 0.1 60 / 0.3); }
 
 /* Hero stats */
-.lr-hero-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.lr-hero-row { display: flex; gap: 14px; }
 .lr-hero { background: var(--bg-card); border: 1px solid var(--line-soft); border-radius: var(--r-lg); padding: 22px 24px; display: flex; flex-direction: column; gap: 6px; }
 .lr-hero__label { font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
 .lr-hero__value { font-size: 42px; font-weight: 750; color: var(--fg); letter-spacing: -0.03em; line-height: 1; }
-.lr-hero__value--up   { color: oklch(0.72 0.16 145); }
-.lr-hero__value--down { color: oklch(0.72 0.14 25); }
-.lr-hero__value--muted { color: var(--muted); }
-.lr-hero__pct { font-size: 18px; font-weight: 500; opacity: 0.75; }
 .lr-hero__sub { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+
+/* Channel + insights side-by-side */
+.lr-body-row { display: flex; gap: 16px; align-items: flex-start; }
+.lr-body-row .lr-card { flex: 0 0 320px; }
+.lr-body-row .lr-insights { flex: 1; min-width: 0; }
+@media (max-width: 780px) { .lr-body-row { flex-direction: column; } .lr-body-row .lr-card, .lr-body-row .lr-insights { flex: none; width: 100%; } }
 
 /* Channel breakdown card */
 .lr-card { background: var(--bg-card); border: 1px solid var(--line-soft); border-radius: var(--r-lg); overflow: hidden; }

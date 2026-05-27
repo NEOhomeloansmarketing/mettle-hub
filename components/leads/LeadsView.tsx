@@ -48,7 +48,7 @@ export function LeadsView({ isAdmin = false }: { isAdmin?: boolean }) {
   const [showEdit, setShowEdit]         = useState(false)
   const [showMapModal, setShowMapModal] = useState<QueueItem | null>(null)
 
-  const loadInsights = useCallback(async (current: ChannelRow[], week: string, prev: string | null) => {
+  const loadInsights = useCallback(async (current: ChannelRow[], week: string, prev: string | null, daysIn: number) => {
     const total = current.reduce((s, r) => s + r.count, 0)
     if (!total) return
     setAiLoading(true)
@@ -57,7 +57,7 @@ export function LeadsView({ isAdmin = false }: { isAdmin?: boolean }) {
       const res  = await fetch('/api/leads/insights', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ current, selectedWeek: week, prevWeek: prev }),
+        body: JSON.stringify({ current, selectedWeek: week, prevWeek: prev, daysIn }),
       })
       const data = await res.json()
       if (res.ok) setInsights(data.insights)
@@ -78,18 +78,16 @@ export function LeadsView({ isAdmin = false }: { isAdmin?: boolean }) {
     setQueue(data.queue ?? [])
     setLoading(false)
     if (data.selectedWeek && data.current?.length) {
-      loadInsights(data.current, data.selectedWeek, data.prevWeek)
+      const daysIn = data.selectedWeek
+        ? Math.max(0, Math.floor((Date.now() - new Date(data.selectedWeek + 'T00:00:00Z').getTime()) / 86400000))
+        : 7
+      loadInsights(data.current, data.selectedWeek, data.prevWeek, daysIn)
     }
   }, [loadInsights])
 
   useEffect(() => { load() }, [load])
 
-  const total     = rows.reduce((s, r) => s + r.count, 0)
-  const prevTotal = rows.every(r => r.prevCount === null)
-    ? null
-    : rows.reduce((s, r) => s + (r.prevCount ?? 0), 0)
-  const wowDiff   = prevTotal !== null ? total - prevTotal : null
-  const wowPct    = prevTotal ? Math.round(Math.abs((total - prevTotal) / prevTotal) * 100) : null
+  const total = rows.reduce((s, r) => s + r.count, 0)
 
   return (
     <div className="lr-page">
@@ -148,78 +146,69 @@ export function LeadsView({ isAdmin = false }: { isAdmin?: boolean }) {
             <div className="lr-hero__value">{total}</div>
             {selected && <div className="lr-hero__sub">{formatWeek(selected)}</div>}
           </div>
-          <div className="lr-hero">
-            <div className="lr-hero__label">vs Prior Week</div>
-            {wowDiff === null ? (
-              <div className="lr-hero__value lr-hero__value--muted">—</div>
-            ) : (
-              <div className={cls('lr-hero__value', wowDiff > 0 ? 'lr-hero__value--up' : wowDiff < 0 ? 'lr-hero__value--down' : '')}>
-                {wowDiff > 0 ? '+' : ''}{wowDiff}
-                {wowPct !== null && <span className="lr-hero__pct"> ({wowPct}%)</span>}
+        </div>
+      )}
+
+      {/* ── Body: channel list + AI insights side by side ── */}
+      <div className="lr-body-row">
+        {/* Channel breakdown */}
+        <div className="lr-card">
+          {loading ? (
+            <div className="lr-loading">
+              {Array.from({ length: 9 }).map((_, i) => <div key={i} className="lr-row-skel" />)}
+            </div>
+          ) : total === 0 ? (
+            <div className="lr-empty">
+              <Icon name="users" size={32} />
+              <p>No lead data yet. Add a week manually or connect Zapier to start tracking.</p>
+            </div>
+          ) : (
+            <ul className="lr-list">
+              {rows.map(r => (
+                <li key={r.channel} className={cls('lr-row', r.count === 0 && 'lr-row--zero')}>
+                  <span className="lr-row__channel">{r.channel}</span>
+                  <span className="lr-row__count">{r.count}</span>
+                </li>
+              ))}
+              <li className="lr-row lr-row--total">
+                <span className="lr-row__channel">Total</span>
+                <span className="lr-row__count">{total}</span>
+              </li>
+            </ul>
+          )}
+        </div>
+
+        {/* AI Insights */}
+        {!loading && total > 0 && (
+          <div className="lr-insights">
+            <div className="lr-insights__head">
+              <Icon name="sparkle" size={13} />
+              <span>AI Analysis</span>
+              {aiLoading && <div className="lr-insights__spinner" />}
+            </div>
+            {aiLoading && (
+              <div className="lr-insights__loading">
+                <div className="lr-insight-skel" />
+                <div className="lr-insight-skel lr-insight-skel--sm" />
+                <div className="lr-insight-skel" />
               </div>
             )}
-            {prevWeek && <div className="lr-hero__sub">prev week: {prevTotal ?? 0} leads</div>}
+            {insights && insights.length > 0 && (
+              <div className="lr-insights__list">
+                {insights.map((ins, i) => (
+                  <div key={i} className={cls('lr-insight', `lr-insight--${ins.type}`)}>
+                    <div className="lr-insight__dot" />
+                    <div>
+                      <div className="lr-insight__headline">{ins.headline}</div>
+                      <div className="lr-insight__body">{ins.body}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        </div>
-      )}
-
-      {/* ── Channel breakdown ── */}
-      <div className="lr-card">
-        {loading ? (
-          <div className="lr-loading">
-            {Array.from({ length: 9 }).map((_, i) => <div key={i} className="lr-row-skel" />)}
-          </div>
-        ) : total === 0 ? (
-          <div className="lr-empty">
-            <Icon name="users" size={32} />
-            <p>No lead data yet. Add a week manually or connect Zapier to start tracking.</p>
-          </div>
-        ) : (
-          <ul className="lr-list">
-            {rows.map(r => (
-              <li key={r.channel} className={cls('lr-row', r.count === 0 && 'lr-row--zero')}>
-                <span className="lr-row__channel">{r.channel}</span>
-                <span className="lr-row__count">{r.count}</span>
-              </li>
-            ))}
-            <li className="lr-row lr-row--total">
-              <span className="lr-row__channel">Total</span>
-              <span className="lr-row__count">{total}</span>
-            </li>
-          </ul>
         )}
       </div>
-
-      {/* ── AI Insights ── */}
-      {!loading && total > 0 && (aiLoading || insights) && (
-        <div className="lr-insights">
-          <div className="lr-insights__head">
-            <Icon name="sparkle" size={13} />
-            <span>AI Analysis</span>
-            {aiLoading && <div className="lr-insights__spinner" />}
-          </div>
-          {aiLoading && (
-            <div className="lr-insights__loading">
-              <div className="lr-insight-skel" />
-              <div className="lr-insight-skel lr-insight-skel--sm" />
-              <div className="lr-insight-skel" />
-            </div>
-          )}
-          {insights && insights.length > 0 && (
-            <div className="lr-insights__list">
-              {insights.map((ins, i) => (
-                <div key={i} className={cls('lr-insight', `lr-insight--${ins.type}`)}>
-                  <div className="lr-insight__dot" />
-                  <div>
-                    <div className="lr-insight__headline">{ins.headline}</div>
-                    <div className="lr-insight__body">{ins.body}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* ── Modals ── */}
       {showEdit && selected && (

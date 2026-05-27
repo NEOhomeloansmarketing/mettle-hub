@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   try {
-    const { current, selectedWeek, prevWeek } = await req.json()
+    const { current, selectedWeek, prevWeek, daysIn = 7 } = await req.json()
 
     const total     = current.reduce((s: number, r: any) => s + r.count, 0)
     const prevTotal = current.reduce((s: number, r: any) => s + (r.prevCount ?? 0), 0)
@@ -52,8 +52,10 @@ Give 3–4 sharp insights a marketing director would act on. Focus on:
 - Which sources are most reliable vs volatile
 - One specific action to take this coming week based on the data
 
+${daysIn <= 2 ? `IMPORTANT: This is only ${daysIn + 1} day(s) into the week — leads are still coming in. Do NOT flag any channel as a concern for low or zero numbers. Only return "good" and "tip" type insights. Save any "warn" observations for end of week.` : ''}
+
 Return ONLY a JSON array. Each object:
-- "type": "good" | "warn" | "tip"
+- "type": "good" | "warn" | "tip"  ${daysIn <= 2 ? '(only "good" and "tip" allowed this early in the week)' : ''}
 - "headline": 5 words max
 - "body": 1–2 sentences with specific numbers`
 
