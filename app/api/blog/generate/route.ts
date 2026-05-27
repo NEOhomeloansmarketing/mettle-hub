@@ -37,7 +37,6 @@ export async function POST(req: NextRequest) {
   const recentTopics = (recentPosts ?? []).map(p => p.topic).filter(Boolean)
   const brief = CHANNEL_BRIEFS[channel]
   const guide = docMap[channel.toLowerCase()] ?? ''
-  const rosetta = docMap['rosettastone'] ?? ''
   const laws = docMap['lawsofmarketing'] ?? ''
 
   const system = `You are an editorial director writing for a mortgage lender's "${channel} Home Loans" channel.
@@ -52,7 +51,7 @@ HARD RULES — non-negotiable:
 - Educational, not salesy. Trust-building, expert tone.
 - Avoid these recent topics (do not repeat — pick a different angle): ${recentTopics.length ? recentTopics.join(', ') : 'none'}
 
-${guide ? `Brand voice guide excerpt:\n${guide.slice(0, 1500)}\n\n` : ''}${rosetta ? `Rosetta Stone reference:\n${rosetta.slice(0, 1200)}\n\n` : ''}${laws ? `Laws of Marketing reference (apply these as principles):\n${laws.slice(0, 1200)}\n\n` : ''}Return your response as a single JSON object with NO commentary outside it. Schema:
+${guide ? `BRAND ROSETTA STONE — definitive guide for voice, positioning, audience, and messaging:\n${guide.slice(0, 6000)}\n\n` : ''}${laws ? `FIVE LAWS OF MARKETING — apply these strategic principles:\n${laws.slice(0, 5000)}\n\n` : ''}Return your response as a single JSON object with NO commentary outside it. Schema:
 {
   "title": "post title, ~60 chars",
   "topic": "short topic slug for de-duplication",
