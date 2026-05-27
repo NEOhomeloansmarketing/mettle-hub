@@ -37,7 +37,10 @@ interface Insight {
   type: 'good' | 'warn' | 'tip'
   headline: string
   body: string
+  action?: string
 }
+
+interface TeamMember { id: string; name: string }
 
 const PRESETS: { value: Preset; label: string }[] = [
   { value: 'last_7d',  label: '7 days'  },
@@ -107,6 +110,9 @@ export function PaidView() {
   const [error, setError]           = useState<string | null>(null)
   const [insights, setInsights]     = useState<Insight[] | null>(null)
   const [aiLoading, setAiLoading]   = useState(false)
+  const [team, setTeam]             = useState<TeamMember[]>([])
+  const [taskState, setTaskState]   = useState<Record<number, 'idle' | 'open' | 'saving' | 'done'>>({})
+  const [taskOwner, setTaskOwner]   = useState<Record<number, string>>({})
   const [hidden, setHidden]         = useState<Set<string>>(() => {
     try { return new Set(JSON.parse(localStorage.getItem('paid_hidden') ?? '[]')) }
     catch { return new Set() }
@@ -162,6 +168,28 @@ export function PaidView() {
   }, [loadInsights])
 
   useEffect(() => { load(preset) }, [preset, load])
+  useEffect(() => {
+    fetch('/api/team').then(r => r.json()).then(d => setTeam(d.team ?? []))
+  }, [])
+
+  async function createTask(idx: number, ins: Insight) {
+    if (!ins.action) return
+    setTaskState(p => ({ ...p, [idx]: 'saving' }))
+    try {
+      await fetch('/api/analytics/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title:       ins.action,
+          description: `${ins.headline} — ${ins.body}`,
+          assignee_id: taskOwner[idx] || null,
+        }),
+      })
+      setTaskState(p => ({ ...p, [idx]: 'done' }))
+    } catch {
+      setTaskState(p => ({ ...p, [idx]: 'open' }))
+    }
+  }
 
   const ov = overview
 
@@ -271,15 +299,47 @@ export function PaidView() {
           )}
           {insights && (
             <div className="paid-insights__list">
-              {insights.map((ins, i) => (
-                <div key={i} className={cls('paid-insight', `paid-insight--${ins.type}`)}>
-                  <div className="paid-insight__dot" />
-                  <div className="paid-insight__content">
-                    <div className="paid-insight__headline">{ins.headline}</div>
-                    <div className="paid-insight__body">{ins.body}</div>
+              {insights.map((ins, i) => {
+                const ts = taskState[i] ?? 'idle'
+                return (
+                  <div key={i} className={cls('paid-insight', `paid-insight--${ins.type}`)}>
+                    <div className="paid-insight__dot" />
+                    <div className="paid-insight__content">
+                      <div className="paid-insight__headline">{ins.headline}</div>
+                      <div className="paid-insight__body">{ins.body}</div>
+                      {ins.action && (
+                        <div className="an-insight__action">
+                          <span className="an-insight__task-label">↳ {ins.action}</span>
+                          {ts === 'done' ? (
+                            <span className="an-task-done"><Icon name="check" size={12} /> Created</span>
+                          ) : ts === 'open' || ts === 'saving' ? (
+                            <div className="an-task-form">
+                              <select
+                                className="an-task-owner"
+                                value={taskOwner[i] ?? ''}
+                                onChange={e => setTaskOwner(p => ({ ...p, [i]: e.target.value }))}
+                              >
+                                <option value="">Unassigned</option>
+                                {team.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                              </select>
+                              <button className="an-task-submit" disabled={ts === 'saving'} onClick={() => createTask(i, ins)}>
+                                {ts === 'saving' ? '…' : 'Create'}
+                              </button>
+                              <button className="an-task-cancel icon-btn" onClick={() => setTaskState(p => ({ ...p, [i]: 'idle' }))}>
+                                <Icon name="x" size={11} />
+                              </button>
+                            </div>
+                          ) : (
+                            <button className="an-task-btn" onClick={() => setTaskState(p => ({ ...p, [i]: 'open' }))}>
+                              + Task
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>

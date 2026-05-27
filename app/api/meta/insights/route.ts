@@ -54,6 +54,7 @@ Format: Return a JSON array of insight objects. Each object has:
 - "type": "good" | "warn" | "tip"
 - "headline": short bold title (6 words max)
 - "body": 1–2 sentence explanation with specific numbers from the data
+- "action": a concrete task someone can do this week — verb-first, 8–15 words, specific to the campaign
 
 Return ONLY the JSON array. No markdown wrapper.`
 
