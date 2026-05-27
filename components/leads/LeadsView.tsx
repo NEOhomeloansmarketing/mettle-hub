@@ -43,7 +43,7 @@ function Trend({ count, prev }: { count: number; prev: number | null }) {
   )
 }
 
-export function LeadsView() {
+export function LeadsView({ isAdmin = false }: { isAdmin?: boolean }) {
   const [weeks, setWeeks]             = useState<string[]>([])
   const [selected, setSelected]       = useState<string | null>(null)
   const [rows, setRows]               = useState<ChannelRow[]>([])
@@ -51,6 +51,7 @@ export function LeadsView() {
   const [queue, setQueue]             = useState<QueueItem[]>([])
   const [loading, setLoading]         = useState(true)
   const [showBackfill, setShowBackfill] = useState(false)
+  const [showEdit, setShowEdit]         = useState(false)
   const [showMapModal, setShowMapModal] = useState<QueueItem | null>(null)
 
   const load = useCallback(async (week?: string) => {
@@ -97,9 +98,16 @@ export function LeadsView() {
               ))}
             </select>
           )}
-          <button className="btn-secondary" onClick={() => setShowBackfill(true)}>
-            <Icon name="plus" size={13} /> Add week
-          </button>
+          {isAdmin && selected && rows.some(r => r.count > 0) && (
+            <button className="btn-secondary" onClick={() => setShowEdit(true)}>
+              <Icon name="edit" size={13} /> Edit week
+            </button>
+          )}
+          {isAdmin && (
+            <button className="btn-secondary" onClick={() => setShowBackfill(true)}>
+              <Icon name="plus" size={13} /> Add week
+            </button>
+          )}
           <button className="icon-btn" onClick={() => load(selected ?? undefined)} title="Refresh">
             <Icon name="refresh" size={14} />
           </button>
@@ -162,7 +170,18 @@ export function LeadsView() {
         )}
       </div>
 
-      {/* ── Backfill modal ── */}
+      {/* ── Edit current week modal ── */}
+      {showEdit && selected && (
+        <BackfillModal
+          onClose={() => setShowEdit(false)}
+          onSaved={(week) => { setShowEdit(false); load(week) }}
+          prefillWeek={selected}
+          prefillCounts={Object.fromEntries(rows.map(r => [r.channel, String(r.count)]))}
+          title="Edit Week"
+        />
+      )}
+
+      {/* ── Add week modal ── */}
       {showBackfill && (
         <BackfillModal
           onClose={() => setShowBackfill(false)}
@@ -184,11 +203,20 @@ export function LeadsView() {
 }
 
 /* ── Backfill Modal ── */
-function BackfillModal({ onClose, onSaved }: { onClose: () => void; onSaved: (week: string) => void }) {
-  const [weekDate, setWeekDate] = useState('')
-  const [counts, setCounts]     = useState<Record<string, string>>({})
+function BackfillModal({
+  onClose, onSaved, prefillWeek, prefillCounts, title = 'Add Past Week'
+}: {
+  onClose: () => void
+  onSaved: (week: string) => void
+  prefillWeek?: string
+  prefillCounts?: Record<string, string>
+  title?: string
+}) {
+  const [weekDate, setWeekDate] = useState(prefillWeek ?? '')
+  const [counts, setCounts]     = useState<Record<string, string>>(prefillCounts ?? {})
   const [saving, setSaving]     = useState(false)
   const [error, setError]       = useState('')
+  const isEdit                  = !!prefillWeek
 
   function getMonday(d: string) {
     const date = new Date(d + 'T00:00:00Z')
@@ -222,15 +250,19 @@ function BackfillModal({ onClose, onSaved }: { onClose: () => void; onSaved: (we
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal lr-modal" onClick={e => e.stopPropagation()}>
         <div className="modal__head">
-          <h3>Add Past Week</h3>
+          <h3>{title}</h3>
           <button className="icon-btn" onClick={onClose}><Icon name="x" size={14} /></button>
         </div>
         <div className="modal__body">
-          <p className="lr-modal__hint">Pick any date in the week. We'll calculate the Monday automatically.</p>
-          <label className="form-label">Any date in that week</label>
+          {isEdit
+            ? <p className="lr-modal__hint">Adjust any channel count for this week. Changes overwrite the current values.</p>
+            : <p className="lr-modal__hint">Pick any date in the week. We'll calculate the Monday automatically.</p>
+          }
+          <label className="form-label">{isEdit ? 'Week' : 'Any date in that week'}</label>
           <input
             type="date" className="form-input" value={weekDate}
             onChange={e => setWeekDate(e.target.value)}
+            readOnly={isEdit}
           />
           <div className="lr-backfill-grid">
             {ALL_CHANNELS.map(ch => (
