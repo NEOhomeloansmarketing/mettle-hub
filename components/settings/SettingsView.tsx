@@ -175,7 +175,7 @@ function ConnectionPanel() {
       )}
       <div style={{ marginTop: 8 }}>
         <span className="status-pill status-pill--ok">
-          <Icon name="sparkle" size={11} /> claude-sonnet-4-6
+          <Icon name="sparkle" size={11} /> claude-haiku-4-5
         </span>
       </div>
     </section>
