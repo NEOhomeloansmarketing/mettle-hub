@@ -72,13 +72,27 @@ function num(n: number) {
 function pct(n: number) { return n ? n.toFixed(2) + '%' : '—' }
 
 export function PaidView() {
-  const [preset, setPreset]       = useState<Preset>('last_30d')
-  const [overview, setOverview]   = useState<Overview | null>(null)
-  const [campaigns, setCampaigns] = useState<Campaign[]>([])
-  const [loading, setLoading]     = useState(true)
-  const [error, setError]         = useState<string | null>(null)
-  const [insights, setInsights]   = useState<Insight[] | null>(null)
-  const [aiLoading, setAiLoading] = useState(false)
+  const [preset, setPreset]         = useState<Preset>('last_30d')
+  const [overview, setOverview]     = useState<Overview | null>(null)
+  const [campaigns, setCampaigns]   = useState<Campaign[]>([])
+  const [loading, setLoading]       = useState(true)
+  const [error, setError]           = useState<string | null>(null)
+  const [insights, setInsights]     = useState<Insight[] | null>(null)
+  const [aiLoading, setAiLoading]   = useState(false)
+  const [hidden, setHidden]         = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('paid_hidden') ?? '[]')) }
+    catch { return new Set() }
+  })
+  const [showHidden, setShowHidden] = useState(false)
+
+  function toggleHide(id: string) {
+    setHidden(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      localStorage.setItem('paid_hidden', JSON.stringify([...next]))
+      return next
+    })
+  }
 
   const loadInsights = useCallback(async (ov: Overview, camps: Campaign[], p: Preset) => {
     if (!ov || !camps.length) return
@@ -241,7 +255,16 @@ export function PaidView() {
         <div className="paid-table-wrap">
           <div className="paid-table-top">
             <h2 className="paid-section-title">Campaigns</h2>
-            <span className="paid-count">{campaigns.length} campaign{campaigns.length !== 1 ? 's' : ''}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {hidden.size > 0 && (
+                <button className="paid-show-hidden" onClick={() => setShowHidden(s => !s)}>
+                  {showHidden ? 'Hide archived' : `${hidden.size} hidden`}
+                </button>
+              )}
+              <span className="paid-count">
+                {campaigns.filter(c => !hidden.has(c.id)).length} campaign{campaigns.filter(c => !hidden.has(c.id)).length !== 1 ? 's' : ''}
+              </span>
+            </div>
           </div>
           <div className="paid-scroll">
             <table className="paid-table">
@@ -256,11 +279,14 @@ export function PaidView() {
                   <th className="r">CPM</th>
                   <th className="r">Leads</th>
                   <th className="r">CPL</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
-                {campaigns.map(c => (
-                  <tr key={c.id}>
+                {campaigns
+                  .filter(c => showHidden || !hidden.has(c.id))
+                  .map(c => (
+                  <tr key={c.id} className={hidden.has(c.id) ? 'paid-row--hidden' : ''}>
                     <td className="paid-camp-name" title={c.name}>{c.name}</td>
                     <td>
                       <span className={cls('paid-pill', `paid-pill--${STATUS_COLOR[c.status] ?? 'muted'}`)}>
@@ -274,6 +300,15 @@ export function PaidView() {
                     <td className="r">{money(c.cpm)}</td>
                     <td className="r fw">{c.leads > 0 ? c.leads : '—'}</td>
                     <td className="r">{money(c.cpl)}</td>
+                    <td>
+                      <button
+                        className="paid-hide-btn"
+                        onClick={() => toggleHide(c.id)}
+                        title={hidden.has(c.id) ? 'Show campaign' : 'Hide campaign'}
+                      >
+                        <Icon name={hidden.has(c.id) ? 'eye' : 'x'} size={12} />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
