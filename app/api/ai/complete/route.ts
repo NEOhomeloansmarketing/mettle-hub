@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const msg = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: Math.min(maxTokens, 8192),
       system: system ?? 'You are a helpful assistant for a marketing operations team.',
       messages: [{ role: 'user', content: userMsg }],
