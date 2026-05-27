@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -93,15 +94,7 @@ export default function LoginPage() {
       <div className="login">
         <div className="login__pane">
           <div className="login__mark">
-            <div className="wordmark__mark">
-              <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-                <rect x="3" y="6" width="3" height="16" fill="currentColor" opacity="0.55"/>
-                <rect x="9" y="2" width="3" height="20" fill="currentColor" opacity="0.80"/>
-                <rect x="15" y="6" width="3" height="16" fill="currentColor" opacity="0.55"/>
-                <rect x="21" y="9" width="3" height="13" fill="var(--accent)"/>
-                <circle cx="22.5" cy="6" r="1.6" fill="var(--accent)"/>
-              </svg>
-            </div>
+            <Image src="/ninja-logo.png" alt="Mettle" width={56} height={38} priority />
             <div>
               <div className="login__brand">Mettle</div>
               <div className="login__sub">Marketing Hub</div>
@@ -124,6 +117,14 @@ export default function LoginPage() {
         </div>
         <div className="login__art">
           <ArtGrid />
+          <Image
+            src="/ninja-logo.png"
+            alt="Marketing Ninjas"
+            width={520}
+            height={347}
+            className="login__ninja"
+            priority
+          />
           <div className="login__art-text">
             <div className="login__art-kicker">Neo Home Loans</div>
             <div className="login__art-name">Mettle Marketing Hub</div>
@@ -249,6 +250,14 @@ export default function LoginPage() {
 
       <div className="login__art">
         <ArtGrid />
+        <Image
+          src="/ninja-logo.png"
+          alt="Marketing Ninjas"
+          width={520}
+          height={347}
+          className="login__ninja"
+          priority
+        />
         <div className="login__art-text">
           <div className="login__art-kicker">Neo Home Loans</div>
           <div className="login__art-name">Mettle Marketing Hub</div>
