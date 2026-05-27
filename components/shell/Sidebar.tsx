@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Icon } from '@/components/ui/Icon'
@@ -81,15 +82,14 @@ export function Sidebar({ pendingApprovals = 0, taskCount = 0, blogPending = 0 }
       {/* Wordmark */}
       <div className="sidebar__top">
         <div className="wordmark">
-          <div className="wordmark__mark" aria-hidden="true">
-            <svg width="26" height="26" viewBox="0 0 28 28" fill="none">
-              <rect x="3"  y="6" width="3" height="16" fill="currentColor" opacity="0.55"/>
-              <rect x="9"  y="2" width="3" height="20" fill="currentColor" opacity="0.80"/>
-              <rect x="15" y="6" width="3" height="16" fill="currentColor" opacity="0.55"/>
-              <rect x="21" y="9" width="3" height="13" fill="var(--accent)"/>
-              <circle cx="22.5" cy="6" r="1.6" fill="var(--accent)"/>
-            </svg>
-          </div>
+          <Image
+            src="/ninja-logo.png"
+            alt="Mettle Ninja"
+            width={48}
+            height={32}
+            className="wordmark__ninja"
+            priority
+          />
           <div className="wordmark__text">
             <div className="wordmark__name">Mettle</div>
             <div className="wordmark__sub">Marketing Hub</div>
