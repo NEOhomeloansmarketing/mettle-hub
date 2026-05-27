@@ -47,7 +47,9 @@ Recommended CTA: ${brief.cta}
 
 HARD RULES — non-negotiable:
 - Never make specific rate or APR claims. No "as low as", no rate numbers.
-- Always include a relevant call to action at the end.
+- Always include a relevant call to action at the end — as plain text only.
+- NEVER include any URLs, hyperlinks, or markdown link syntax [text](url) anywhere in any field. Readers are already on the site.
+- NEVER fabricate or suggest any website addresses, domain names, or external links.
 - Educational, not salesy. Trust-building, expert tone.
 - Avoid these recent topics (do not repeat — pick a different angle): ${recentTopics.length ? recentTopics.join(', ') : 'none'}
 
@@ -86,6 +88,15 @@ ${guide ? `BRAND ROSETTA STONE — definitive guide for voice, positioning, audi
     let parsed: Record<string, any>
     try { parsed = JSON.parse(txt) }
     catch { throw new Error('AI returned invalid JSON. Try again. Preview: ' + raw.slice(0, 200)) }
+
+    // Strip any markdown links [text](url) → just the text, across all text fields
+    function stripLinks(s: string): string {
+      return (s ?? '').replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    }
+    parsed.body               = stripLinks(parsed.body)
+    parsed.linkedin           = stripLinks(parsed.linkedin)
+    parsed.instagram          = stripLinks(parsed.instagram)
+    parsed.metaDescription    = stripLinks(parsed.metaDescription)
 
     // Insert into DB
     const { data: post, error } = await supabase
