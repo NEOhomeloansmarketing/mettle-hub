@@ -13,6 +13,10 @@ export async function POST(req: NextRequest) {
 
   try {
     const { overview, campaigns, preset } = await req.json()
+    const activeCampaigns = (campaigns ?? []).filter((c: any) => c.spend > 0)
+    if (!activeCampaigns.length) {
+      return NextResponse.json({ insights: [] })
+    }
 
     const periodLabel = preset === 'last_7d' ? 'last 7 days' : preset === 'last_30d' ? 'last 30 days' : 'last 90 days'
 
@@ -37,8 +41,8 @@ PERFORMANCE DATA (${periodLabel}):
 - Leads: ${overview.leads}
 - Cost per Lead: ${overview.cpl > 0 ? '$' + overview.cpl.toFixed(2) : 'N/A'}
 
-CAMPAIGNS:
-${campaigns.map((c: any) => `- "${c.name}" (${c.status}): $${c.spend.toFixed(2)} spend, ${c.impressions.toLocaleString()} impressions, ${c.clicks} clicks, ${c.ctr.toFixed(2)}% CTR, ${c.leads} leads, CPL: ${c.cpl > 0 ? '$' + c.cpl.toFixed(2) : 'N/A'}`).join('\n')}
+CAMPAIGNS WITH DATA (only analyze these — campaigns with $0 spend are newly launched and have no data yet, do not mention them):
+${campaigns.filter((c: any) => c.spend > 0).map((c: any) => `- "${c.name}" (${c.status}): $${c.spend.toFixed(2)} spend, ${c.impressions.toLocaleString()} impressions, ${c.clicks} clicks, ${c.ctr.toFixed(2)}% CTR, ${c.leads} leads, CPL: ${c.cpl > 0 ? '$' + c.cpl.toFixed(2) : 'N/A'}`).join('\n')}
 
 Give 4–5 sharp, specific, actionable insights a marketing director would act on immediately. Insights must:
 - Reference the actual campaign names above
