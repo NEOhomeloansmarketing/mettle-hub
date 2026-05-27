@@ -16,7 +16,15 @@ export async function POST(req: NextRequest) {
 
     const periodLabel = preset === 'last_7d' ? 'last 7 days' : preset === 'last_30d' ? 'last 30 days' : 'last 90 days'
 
-    const prompt = `You are a paid media strategist analyzing Meta Ads performance for NEO Home Loans — a mortgage company targeting CRNAs, Physicians, and Entrepreneurs.
+    const prompt = `You are a paid media strategist analyzing Meta Ads for NEO Home Loans.
+
+BRAND CONTEXT:
+NEO Home Loans runs three distinct mortgage channels:
+- Entrepreneur: Self-employed founders, owner-operators, business owners. These borrowers use bank-statement loans, have complex tax returns, variable income. Key angle: qualify without tax returns.
+- CRNA: Certified Registered Nurse Anesthetists. High-earning healthcare professionals with mixed W-2/1099 income, often relocating. Key angle: specialty loan structures for non-traditional pay.
+- Physician: MDs, DOs, residents, fellows. High earners with student debt, early career. Key angle: physician loan with 0% down.
+
+CRITICAL RULE: Base every insight strictly on the campaign names shown. If a campaign is named "Entrepreneur", only suggest things relevant to entrepreneur/self-employed borrowers. Do NOT suggest physician or CRNA targeting for entrepreneur campaigns. Do NOT invent audience segments that don't exist in the data.
 
 PERFORMANCE DATA (${periodLabel}):
 - Total Spend: $${overview.spend.toFixed(2)}
@@ -30,13 +38,13 @@ PERFORMANCE DATA (${periodLabel}):
 - Cost per Lead: ${overview.cpl > 0 ? '$' + overview.cpl.toFixed(2) : 'N/A'}
 
 CAMPAIGNS:
-${campaigns.map((c: any) => `- ${c.name} (${c.status}): $${c.spend.toFixed(2)} spend, ${c.impressions.toLocaleString()} impressions, ${c.clicks} clicks, ${c.ctr.toFixed(2)}% CTR, ${c.leads} leads, CPL: ${c.cpl > 0 ? '$' + c.cpl.toFixed(2) : 'N/A'}`).join('\n')}
+${campaigns.map((c: any) => `- "${c.name}" (${c.status}): $${c.spend.toFixed(2)} spend, ${c.impressions.toLocaleString()} impressions, ${c.clicks} clicks, ${c.ctr.toFixed(2)}% CTR, ${c.leads} leads, CPL: ${c.cpl > 0 ? '$' + c.cpl.toFixed(2) : 'N/A'}`).join('\n')}
 
-Give 4–5 sharp, specific, actionable insights a marketing director would act on immediately. Focus on:
-- What's working and should get more budget
-- What's underperforming and why
-- Specific optimizations to improve CTR, CPL, or lead volume
-- Any notable patterns across campaigns
+Give 4–5 sharp, specific, actionable insights a marketing director would act on immediately. Insights must:
+- Reference the actual campaign names above
+- Stay relevant to the audience that campaign is targeting (based on its name)
+- Suggest creatives, copy angles, or budget moves that match what that channel actually sells
+- Cite specific numbers from the data
 
 Format: Return a JSON array of insight objects. Each object has:
 - "type": "good" | "warn" | "tip"
