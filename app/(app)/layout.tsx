@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Sidebar } from '@/components/shell/Sidebar'
 import { TopBar } from '@/components/shell/TopBar'
 import { ToastProvider } from '@/components/ui/Toast'
+import { ChatPopup } from '@/components/chat/ChatPopup'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -40,6 +41,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         </div>
       </div>
+      <ChatPopup />
     </ToastProvider>
   )
 }
