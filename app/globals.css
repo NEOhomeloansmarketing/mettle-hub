@@ -55,10 +55,12 @@
 [data-density="airy"]     { --pad: 28px; --gap: 22px; }
 [data-sidebar="collapsed"] { --sidebar-w: 64px; }
 [data-sidebar="collapsed"] .nav-item__label,
+[data-sidebar="collapsed"] .nav-section__label,
 [data-sidebar="collapsed"] .wordmark__text,
 [data-sidebar="collapsed"] .sidebar__foot,
 [data-sidebar="collapsed"] .nav-item__count { display: none; }
 [data-sidebar="collapsed"] .nav-item { justify-content: center; padding: 10px 0; }
+[data-sidebar="collapsed"] .nav-item::before { display: none; }
 [data-sidebar="collapsed"] .wordmark { justify-content: center; }
 
 * { box-sizing: border-box; }
@@ -79,45 +81,73 @@ button { font-family: inherit; }
 .app__main { display: grid; grid-template-rows: var(--topbar-h) 1fr; min-width: 0; min-height: 0; }
 .app__view { overflow: auto; min-height: 0; position: relative; }
 
+/* ── Sidebar ── */
 .sidebar {
   display: flex; flex-direction: column;
   border-right: 1px solid var(--line-soft);
-  background: linear-gradient(180deg, oklch(0.14 0.012 var(--accent-hue)) 0%, oklch(0.16 0.012 var(--accent-hue)) 100%);
-  padding: 16px 12px 14px; gap: 14px; min-width: 0; overflow: hidden;
+  background: oklch(0.13 0.014 var(--accent-hue));
+  padding: 18px 10px 14px; gap: 0; min-width: 0; overflow: hidden;
 }
-.sidebar__top { padding: 4px 6px; }
+
+/* Wordmark */
+.sidebar__top { padding: 2px 8px 14px; }
 .wordmark { display: flex; align-items: center; gap: 10px; }
 .wordmark__mark {
-  display: grid; place-items: center; width: 32px; height: 32px;
-  border-radius: 8px; background: oklch(0.22 0.018 var(--accent-hue));
-  color: var(--fg); border: 1px solid var(--line-soft); flex-shrink: 0;
+  display: grid; place-items: center; width: 30px; height: 30px;
+  border-radius: 8px; background: oklch(0.20 0.018 var(--accent-hue));
+  color: var(--fg); border: 1px solid oklch(1 0 0 / 0.08); flex-shrink: 0;
 }
-.wordmark__name { font-weight: 600; font-size: 15px; letter-spacing: -0.01em; }
-.wordmark__sub { font-size: 11px; color: var(--muted); letter-spacing: 0.02em; }
-.sidebar__nav { display: flex; flex-direction: column; gap: 2px; padding-top: 6px; }
+.wordmark__name { font-weight: 700; font-size: 14.5px; letter-spacing: -0.02em; }
+.wordmark__sub { font-size: 10.5px; color: oklch(0.55 0.02 var(--accent-hue)); letter-spacing: 0.02em; }
+
+/* Nav */
+.sidebar__nav { display: flex; flex-direction: column; gap: 0; flex: 1; overflow-y: auto; scrollbar-width: none; }
+.sidebar__nav::-webkit-scrollbar { display: none; }
+
+/* Sections */
+.nav-section { display: flex; flex-direction: column; gap: 1px; margin-bottom: 4px; }
+.nav-section__label {
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  color: oklch(0.45 0.02 var(--accent-hue)); padding: 10px 10px 4px;
+}
+
+/* Nav item */
 .nav-item {
-  display: flex; align-items: center; gap: 10px; padding: 8px 10px;
-  border-radius: var(--r-md); background: transparent; border: 0;
-  color: var(--fg-2); cursor: pointer; font-size: 13px; text-align: left;
+  display: flex; align-items: center; gap: 9px; padding: 7px 10px;
+  border-radius: 7px; background: transparent; border: 0;
+  color: oklch(0.62 0.02 var(--accent-hue)); cursor: pointer; font-size: 13px;
+  font-weight: 500; text-align: left; text-decoration: none;
   position: relative; transition: background .12s ease, color .12s ease; width: 100%;
 }
-.nav-item:hover { background: var(--bg-hover); color: var(--fg); }
-.nav-item--active { background: var(--bg-card); color: var(--fg); box-shadow: inset 0 0 0 1px var(--line-soft); }
-.nav-item--active::before {
-  content: ''; position: absolute; left: -12px; top: 9px; bottom: 9px;
-  width: 2px; background: var(--accent); border-radius: 2px;
+.nav-item__icon { display: flex; align-items: center; justify-content: center; width: 18px; flex-shrink: 0; }
+.nav-item:hover { background: oklch(1 0 0 / 0.06); color: oklch(0.88 0.02 var(--accent-hue)); }
+.nav-item--active {
+  background: oklch(1 0 0 / 0.09);
+  color: oklch(0.97 0.01 var(--accent-hue));
+  font-weight: 600;
 }
+.nav-item--active .nav-item__icon { color: var(--accent); }
+.nav-item--active::before {
+  content: ''; position: absolute; left: 0; top: 6px; bottom: 6px;
+  width: 3px; background: var(--accent); border-radius: 0 3px 3px 0;
+}
+
 .nav-item__label { flex: 1; }
 .nav-item__count {
-  font-size: 11px; padding: 1px 6px; background: var(--accent-soft);
-  color: var(--accent-ink); border-radius: 20px; font-variant-numeric: tabular-nums;
+  font-size: 10.5px; padding: 1px 6px; background: var(--accent-soft);
+  color: var(--accent-ink); border-radius: 20px; font-variant-numeric: tabular-nums; font-weight: 600;
 }
 .nav-item__count--warn { background: oklch(0.65 0.14 80 / 0.18); color: oklch(0.85 0.10 80); }
-.sidebar__foot { margin-top: auto; padding: 8px; }
-.channel-legend { padding: 12px; background: var(--bg-card); border: 1px solid var(--line-soft); border-radius: var(--r-md); }
-.channel-legend__title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted-2); margin-bottom: 8px; }
-.channel-legend__row { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 3px 0; color: var(--fg-2); }
-.channel-legend__dot { width: 8px; height: 8px; border-radius: 2px; }
+
+/* Bottom section */
+.sidebar__foot { padding: 0; display: flex; flex-direction: column; gap: 10px; margin-top: auto; padding-top: 4px; }
+.nav-divider { height: 1px; background: oklch(1 0 0 / 0.07); margin: 4px 4px 6px; }
+
+/* Channel legend */
+.channel-legend { padding: 10px 12px; background: oklch(1 0 0 / 0.04); border: 1px solid oklch(1 0 0 / 0.07); border-radius: var(--r-md); }
+.channel-legend__title { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.1em; color: oklch(0.45 0.02 var(--accent-hue)); margin-bottom: 7px; font-weight: 700; }
+.channel-legend__row { display: flex; align-items: center; gap: 8px; font-size: 11.5px; padding: 2px 0; color: oklch(0.58 0.02 var(--accent-hue)); }
+.channel-legend__dot { width: 7px; height: 7px; border-radius: 2px; flex-shrink: 0; }
 
 .topbar {
   display: flex; align-items: center; justify-content: space-between;
