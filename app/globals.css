@@ -1200,6 +1200,12 @@ button { font-family: inherit; }
 /* Category inline label */
 .an-cat { font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; letter-spacing: 0.04em; flex-shrink: 0; }
 
+/* Coming soon card */
+.an-card--soon { opacity: 0.7; }
+.soon-badge { font-size: 9px; font-weight: 800; letter-spacing: 0.08em; padding: 2px 7px; border-radius: 4px; background: var(--bg-3); color: var(--muted); border: 1px solid var(--line-soft); margin-left: auto; }
+.an-soon-body { display: flex; align-items: center; gap: 14px; padding: 18px 20px; color: var(--muted); }
+.an-soon-body p { font-size: 13px; line-height: 1.5; margin: 0; }
+
 /* ── Google Search Console section ── */
 .gsc-badge { font-size: 9px; font-weight: 800; letter-spacing: 0.08em; padding: 2px 6px; border-radius: 4px; background: oklch(0.93 0.06 145); color: oklch(0.35 0.14 145); margin-left: auto; }
 .gsc-head { gap: 8px; }
