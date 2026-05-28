@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
           startDate,
           endDate,
           dimensions: ['query'],
-          rowLimit: 25,
+          rowLimit: 50,
         },
       }),
       gsc.searchanalytics.query({
@@ -89,13 +89,15 @@ export async function GET(req: NextRequest) {
       }),
     ])
 
-    const queries = (queriesRes.data.rows ?? []).map((r: any) => ({
-      query:       r.keys?.[0] ?? '',
-      clicks:      Math.round(r.clicks      ?? 0),
-      impressions: Math.round(r.impressions ?? 0),
-      ctr:         r.ctr      ?? 0,
-      position:    r.position ?? 0,
-    }))
+    const queries = (queriesRes.data.rows ?? [])
+      .map((r: any) => ({
+        query:       r.keys?.[0] ?? '',
+        clicks:      Math.round(r.clicks      ?? 0),
+        impressions: Math.round(r.impressions ?? 0),
+        ctr:         r.ctr      ?? 0,
+        position:    r.position ?? 0,
+      }))
+      .filter(q => q.position <= 30)
 
     const pages = (pagesRes.data.rows ?? []).map((r: any) => ({
       page:        r.keys?.[0] ?? '',
