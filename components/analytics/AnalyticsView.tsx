@@ -41,6 +41,32 @@ interface TopPage {
   engagementRate: number
 }
 
+interface GscQuery {
+  query: string
+  clicks: number
+  impressions: number
+  ctr: number
+  position: number
+}
+
+interface GscPage {
+  page: string
+  clicks: number
+  impressions: number
+  ctr: number
+  position: number
+}
+
+interface GscData {
+  queries:  GscQuery[]
+  pages:    GscPage[]
+  nearMiss: GscQuery[]
+  summary:  { totalImpressions: number; totalClicks: number; avgPosition: number; avgCtr: number }
+  notConfigured?: boolean
+  scopeNeeded?:   boolean
+  error?:         string
+}
+
 interface SiteData {
   id: string
   name: string
@@ -111,6 +137,14 @@ function TrendBadge({ current, prev, higherIsBetter = true }: {
   )
 }
 
+function PosBadge({ pos }: { pos: number }) {
+  const r   = Math.round(pos)
+  const cls = r <= 3 ? 'pos--top' : r <= 10 ? 'pos--p1' : r <= 20 ? 'pos--p2' : 'pos--deep'
+  return <span className={`pos-badge ${cls}`}>#{r}</span>
+}
+
+function fmtCtr(n: number) { return (n * 100).toFixed(1) + '%' }
+
 function shortenPath(path: string) {
   // Remove query string, keep first 50 chars
   const clean = path.split('?')[0]
@@ -127,6 +161,10 @@ export function AnalyticsView() {
   const [team, setTeam]             = useState<TeamMember[]>([])
   const [taskState, setTaskState]   = useState<Record<string, 'idle' | 'open' | 'saving' | 'done'>>({})
   const [taskOwner, setTaskOwner]   = useState<Record<string, string>>({})
+  const [gscData, setGscData]       = useState<Record<number, GscData | null>>({})
+  const [gscLoading, setGscLoading] = useState<Record<number, boolean>>({})
+  const [gscSites, setGscSites]     = useState<string[]>([])
+  const [showNearMiss, setShowNearMiss] = useState(true)
 
   useEffect(() => {
     fetch('/api/team').then(r => r.json()).then(d => setTeam(d.team ?? []))
@@ -158,16 +196,39 @@ export function AnalyticsView() {
     finally { setAiLoading(p => ({ ...p, [idx]: false })) }
   }, [preset])
 
+  const loadGsc = useCallback(async (idx: number, siteName: string, p: Preset) => {
+    setGscLoading(prev => ({ ...prev, [idx]: true }))
+    try {
+      const res  = await fetch(`/api/analytics/gsc?site=${encodeURIComponent(siteName)}&preset=${p}`)
+      const data = await res.json()
+      setGscData(prev => ({ ...prev, [idx]: data }))
+      // If scope is needed, try discovery to show available sites
+      if (data.scopeNeeded || data.notConfigured) {
+        const dr = await fetch('/api/analytics/gsc?discover=1')
+        const dd = await dr.json()
+        if (dd.sites) setGscSites(dd.sites)
+      }
+    } catch {
+      setGscData(prev => ({ ...prev, [idx]: null }))
+    } finally {
+      setGscLoading(prev => ({ ...prev, [idx]: false }))
+    }
+  }, [])
+
   async function load(p: Preset) {
     setLoading(true)
     setInsights({})
+    setGscData({})
     try {
       const res  = await fetch(`/api/analytics/stats?preset=${p}`)
       const data = await res.json()
       const loaded: SiteData[] = data.sites ?? []
       setSites(loaded)
       const active = loaded[activeTab]
-      if (active) loadInsights(activeTab, active)
+      if (active) {
+        loadInsights(activeTab, active)
+        loadGsc(activeTab, active.name, p)
+      }
     } catch { /* fail silently */ }
     finally { setLoading(false) }
   }
@@ -176,8 +237,12 @@ export function AnalyticsView() {
 
   useEffect(() => {
     const site = sites[activeTab]
-    if (site && insights[activeTab] === undefined && !aiLoading[activeTab]) {
+    if (!site) return
+    if (insights[activeTab] === undefined && !aiLoading[activeTab]) {
       loadInsights(activeTab, site)
+    }
+    if (gscData[activeTab] === undefined && !gscLoading[activeTab]) {
+      loadGsc(activeTab, site.name, preset)
     }
   }, [activeTab, sites])
 
@@ -415,6 +480,209 @@ export function AnalyticsView() {
                   </div>
                 </div>
               )}
+
+              {/* ── Search Visibility (GSC) ─────────── */}
+              {(() => {
+                const gsc = gscData[activeTab]
+                const gscLoad = gscLoading[activeTab]
+
+                if (gscLoad) return (
+                  <div className="an-card">
+                    <div className="an-card__head">
+                      <span>Search Visibility</span>
+                      <span className="gsc-badge">GSC</span>
+                    </div>
+                    <div className="gsc-loading">
+                      {[1,2,3].map(i => <div key={i} className="an-iskel" style={{ height: 40 }} />)}
+                    </div>
+                  </div>
+                )
+
+                if (!gsc) return null
+
+                // Scope not granted yet
+                if (gsc.scopeNeeded) return (
+                  <div className="an-card gsc-setup">
+                    <div className="an-card__head">
+                      <span>Search Visibility</span>
+                      <span className="gsc-badge">GSC</span>
+                    </div>
+                    <div className="gsc-setup-body">
+                      <div className="gsc-setup-icon"><Icon name="lock" size={20} /></div>
+                      <p className="gsc-setup-title">Search Console not connected</p>
+                      <p className="gsc-setup-desc">
+                        Your OAuth token needs the <code>webmasters.readonly</code> scope.
+                        Re-authorize in Google OAuth Playground with both scopes, then update
+                        <code>GOOGLE_REFRESH_TOKEN</code> in Vercel.
+                      </p>
+                      <a
+                        className="gsc-setup-link"
+                        href="https://developers.google.com/oauthplayground/?scopes=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fanalytics.readonly+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fwebmasters.readonly"
+                        target="_blank" rel="noreferrer"
+                      >
+                        Open OAuth Playground →
+                      </a>
+                    </div>
+                  </div>
+                )
+
+                // Site URL not configured yet
+                if (gsc.notConfigured) return (
+                  <div className="an-card gsc-setup">
+                    <div className="an-card__head">
+                      <span>Search Visibility</span>
+                      <span className="gsc-badge">GSC</span>
+                    </div>
+                    <div className="gsc-setup-body">
+                      <div className="gsc-setup-icon"><Icon name="settings" size={20} /></div>
+                      <p className="gsc-setup-title">Add site URL to Vercel</p>
+                      <p className="gsc-setup-desc">
+                        Add <code>GSC_SITE_{site.name.toUpperCase().replace(/ /g, '_')}</code> to your
+                        Vercel environment variables. Your verified GSC properties:
+                      </p>
+                      {gscSites.length > 0 && (
+                        <ul className="gsc-sites-list">
+                          {gscSites.map(s => <li key={s}><code>{s}</code></li>)}
+                        </ul>
+                      )}
+                    </div>
+                  </div>
+                )
+
+                // We have data!
+                const { summary, queries, nearMiss, pages } = gsc
+                return (
+                  <div className="an-card">
+                    <div className="an-card__head gsc-head">
+                      <span>Search Visibility</span>
+                      <span className="gsc-badge">GSC</span>
+                    </div>
+
+                    {/* GSC summary stats */}
+                    <div className="gsc-stats">
+                      <div className="gsc-stat">
+                        <div className="gsc-stat__label">Impressions</div>
+                        <div className="gsc-stat__val">{summary.totalImpressions.toLocaleString()}</div>
+                      </div>
+                      <div className="gsc-stat">
+                        <div className="gsc-stat__label">Clicks</div>
+                        <div className="gsc-stat__val">{summary.totalClicks.toLocaleString()}</div>
+                      </div>
+                      <div className="gsc-stat">
+                        <div className="gsc-stat__label">Avg Position</div>
+                        <div className="gsc-stat__val">{summary.avgPosition.toFixed(1)}</div>
+                      </div>
+                      <div className="gsc-stat">
+                        <div className="gsc-stat__label">Avg CTR</div>
+                        <div className="gsc-stat__val">{fmtCtr(summary.avgCtr)}</div>
+                      </div>
+                    </div>
+
+                    {/* Near-miss opportunities */}
+                    {nearMiss.length > 0 && (
+                      <>
+                        <div className="gsc-section-head" onClick={() => setShowNearMiss(v => !v)}>
+                          <span className="gsc-opp-dot" />
+                          <span>Near Page 1 Opportunities</span>
+                          <span className="gsc-section-count">{nearMiss.length}</span>
+                          <span className="gsc-section-chevron">{showNearMiss ? '▲' : '▼'}</span>
+                        </div>
+                        {showNearMiss && (
+                          <div className="an-table-scroll">
+                            <table className="an-lp-table gsc-table">
+                              <thead>
+                                <tr>
+                                  <th>Keyword</th>
+                                  <th className="r">Pos</th>
+                                  <th className="r">Impr</th>
+                                  <th className="r">CTR</th>
+                                  <th className="r">Clicks</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {nearMiss.map((q, i) => (
+                                  <tr key={i}>
+                                    <td className="gsc-query">{q.query}</td>
+                                    <td className="an-lp-num"><PosBadge pos={q.position} /></td>
+                                    <td className="an-lp-num">{q.impressions.toLocaleString()}</td>
+                                    <td className="an-lp-muted">{fmtCtr(q.ctr)}</td>
+                                    <td className="an-lp-num">{q.clicks}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* All top queries */}
+                    {queries.length > 0 && (
+                      <>
+                        <div className="gsc-section-head gsc-section-head--plain">
+                          <span>Top Search Queries</span>
+                          <span className="gsc-section-count">{queries.length} shown</span>
+                        </div>
+                        <div className="an-table-scroll">
+                          <table className="an-lp-table gsc-table">
+                            <thead>
+                              <tr>
+                                <th>Keyword</th>
+                                <th className="r">Pos</th>
+                                <th className="r">Impr</th>
+                                <th className="r">CTR</th>
+                                <th className="r">Clicks</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {queries.map((q, i) => (
+                                <tr key={i}>
+                                  <td className="gsc-query">{q.query}</td>
+                                  <td className="an-lp-num"><PosBadge pos={q.position} /></td>
+                                  <td className="an-lp-num">{q.impressions.toLocaleString()}</td>
+                                  <td className="an-lp-muted">{fmtCtr(q.ctr)}</td>
+                                  <td className="an-lp-num">{q.clicks}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </>
+                    )}
+
+                    {/* Top pages by search */}
+                    {pages.length > 0 && (
+                      <>
+                        <div className="gsc-section-head gsc-section-head--plain">
+                          <span>Pages by Search Impressions</span>
+                        </div>
+                        <div className="an-table-scroll">
+                          <table className="an-lp-table gsc-table">
+                            <thead>
+                              <tr>
+                                <th>Page</th>
+                                <th className="r">Pos</th>
+                                <th className="r">Impr</th>
+                                <th className="r">Clicks</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {pages.map((p, i) => (
+                                <tr key={i}>
+                                  <td><span className="an-lp-path" title={p.page}>{shortenPath(p.page.replace(/^https?:\/\/[^/]+/, ''))}</span></td>
+                                  <td className="an-lp-num"><PosBadge pos={p.position} /></td>
+                                  <td className="an-lp-num">{p.impressions.toLocaleString()}</td>
+                                  <td className="an-lp-num">{p.clicks}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )
+              })()}
 
             </div>
 
