@@ -191,15 +191,41 @@ function MeetingDetail({
 }) {
   const { push: toast } = useToast()
   const supabase = createClient()
-  const [title, setTitle] = useState(meeting.title)
-  const [agenda, setAgenda] = useState(meeting.agenda ?? '')
+  const [title, setTitle]           = useState(meeting.title)
   const [transcript, setTranscript] = useState(meeting.transcript ?? '')
   const [processing, setProcessing] = useState(false)
   const [pushSectionId, setPushSectionId] = useState(sections[0]?.id ?? '')
 
+  function parseAgendaItems(raw: string): string[] {
+    const lines = (raw ?? '').split('\n')
+    const items = lines.length > 0 && lines.some(l => l.trim()) ? lines : []
+    while (items.length < 4) items.push('')
+    return items
+  }
+
+  const [agendaItems, setAgendaItems] = useState<string[]>(() => parseAgendaItems(meeting.agenda ?? ''))
+
+  function saveAgenda(items: string[]) {
+    onUpdate({ agenda: items.join('\n') })
+  }
+
+  function setAgendaItem(i: number, val: string) {
+    setAgendaItems(prev => { const n = [...prev]; n[i] = val; return n })
+  }
+
+  function removeAgendaItem(i: number) {
+    const next = agendaItems.filter((_, idx) => idx !== i)
+    setAgendaItems(next)
+    saveAgenda(next)
+  }
+
+  function addAgendaItem() {
+    setAgendaItems(prev => [...prev, ''])
+  }
+
   useEffect(() => {
     setTitle(meeting.title)
-    setAgenda(meeting.agenda ?? '')
+    setAgendaItems(parseAgendaItems(meeting.agenda ?? ''))
     setTranscript(meeting.transcript ?? '')
   }, [meeting.id])
 
@@ -308,30 +334,40 @@ Known team members: ${teamNames}. If an assignee isn't named in the transcript, 
 
   return (
     <div className="mtg-detail">
+
+      {/* ── Header ─────────────────────────────────── */}
       <header className="mtg-detail__head">
-        <div style={{ flex: 1 }}>
+        <div className="mtg-detail__head-left">
           <input
             className="mtg-detail__title"
             value={title}
             onChange={e => setTitle(e.target.value)}
             onBlur={e => onUpdate({ title: e.target.value.trim() || 'Untitled meeting' })}
+            placeholder="Meeting title"
           />
           <div className="mtg-detail__meta">
             <Icon name="calendar" size={12} />
             <span>{fmtDateTime(meeting.date)}</span>
             <span className="dot-sep">·</span>
-            <span>{attendeeIds.length} attending</span>
+            <div className="attendee-row attendee-row--inline">
+              {team.filter(m => attendeeIds.includes(m.id)).map(m => (
+                <Avatar key={m.id} user={m} size={18} />
+              ))}
+              {attendeeIds.length === 0 && <span>No attendees</span>}
+            </div>
           </div>
         </div>
-        <div className="mtg-detail__actions">
-          <button className="icon-btn" onClick={onDelete} title="Delete meeting">
-            <Icon name="trash" size={14} />
-          </button>
-        </div>
+        <button className="icon-btn" onClick={onDelete} title="Delete meeting">
+          <Icon name="trash" size={14} />
+        </button>
       </header>
 
       <div className="mtg-detail__grid">
+
+        {/* ── Left column ──────────────────────────── */}
         <div className="mtg-detail__col">
+
+          {/* Attendees */}
           <section className="card card--padded">
             <h4 className="card__h">Attendees</h4>
             <div className="attendee-row">
@@ -341,26 +377,41 @@ Known team members: ${teamNames}. If an assignee isn't named in the transcript, 
                   className={cls('attendee', attendeeIds.includes(m.id) && 'attendee--on')}
                   onClick={() => toggleAttendee(m.id)}
                 >
-                  <Avatar user={m} size={22} />
+                  <Avatar user={m} size={20} />
                   <span>{m.name.split(' ')[0]}</span>
                 </button>
               ))}
             </div>
           </section>
 
+          {/* Agenda */}
           <section className="card card--padded">
             <h4 className="card__h">Agenda</h4>
-            <textarea
-              className="input"
-              rows={4}
-              value={agenda}
-              onChange={e => setAgenda(e.target.value)}
-              onBlur={e => onUpdate({ agenda: e.target.value })}
-              placeholder="What are you covering?"
-              style={{ resize: 'vertical' }}
-            />
+            <ul className="agenda-list">
+              {agendaItems.map((item, i) => (
+                <li key={i} className="agenda-item">
+                  <span className="agenda-item__num">{i + 1}</span>
+                  <input
+                    className="agenda-item__input"
+                    value={item}
+                    onChange={e => setAgendaItem(i, e.target.value)}
+                    onBlur={() => saveAgenda(agendaItems)}
+                    placeholder={`Item ${i + 1}`}
+                  />
+                  {agendaItems.length > 1 && (
+                    <button className="icon-btn icon-btn--sm" onClick={() => removeAgendaItem(i)} title="Remove">
+                      <Icon name="x" size={11} />
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <button className="agenda-add" onClick={addAgendaItem}>
+              <Icon name="plus" size={12} /> Add item
+            </button>
           </section>
 
+          {/* Transcript */}
           <section className="card card--padded">
             <div className="card__h-row">
               <h4 className="card__h" style={{ marginBottom: 0 }}>Transcript</h4>
@@ -369,7 +420,7 @@ Known team members: ${teamNames}. If an assignee isn't named in the transcript, 
                 {processing ? 'Processing…' : 'Process with AI'}
               </button>
             </div>
-            <div style={{ marginTop: 12 }}>
+            <div className="mtg-transcript">
               <textarea
                 className="input"
                 rows={10}
@@ -377,49 +428,45 @@ Known team members: ${teamNames}. If an assignee isn't named in the transcript, 
                 onChange={e => setTranscript(e.target.value)}
                 onBlur={() => onUpdate({ transcript })}
                 placeholder="Paste your meeting transcript here. AI will extract a summary and action items."
-                style={{ resize: 'vertical' }}
               />
               {processing && <AILoading label="Reading transcript, drafting summary and action items…" />}
             </div>
           </section>
         </div>
 
+        {/* ── Right column ─────────────────────────── */}
         <div className="mtg-detail__col">
+
+          {/* AI Summary */}
           <section className="card card--padded">
             <div className="card__h-row">
-              <h4 className="card__h" style={{ marginBottom: 0 }}>AI summary</h4>
+              <h4 className="card__h" style={{ marginBottom: 0 }}>AI Summary</h4>
               {meeting.summary && (
-                <button
-                  className="link-btn"
-                  onClick={() => { navigator.clipboard.writeText(meeting.summary); toast('Copied') }}
-                >
+                <button className="link-btn" onClick={() => { navigator.clipboard.writeText(meeting.summary); toast('Copied') }}>
                   <Icon name="copy" size={12} /> Copy
                 </button>
               )}
             </div>
-            <div style={{ marginTop: 12 }}>
+            <div className="mtg-summary">
               {meeting.summary
                 ? <p className="prose">{meeting.summary}</p>
-                : <span className="hint">No summary yet — process a transcript to generate one.</span>}
+                : <span className="hint">Process a transcript to generate a summary.</span>}
             </div>
           </section>
 
+          {/* Action Items */}
           <section className="card card--padded">
             <div className="card__h-row">
               <h4 className="card__h" style={{ marginBottom: 0 }}>
-                Action items{' '}
-                <span style={{ color: 'var(--muted)', fontWeight: 400 }}>
-                  ({(meeting.action_items ?? []).filter(a => a.accepted).length} ready)
-                </span>
+                Action Items
+                {(meeting.action_items ?? []).length > 0 && (
+                  <span className="mtg-ai-count">{(meeting.action_items ?? []).filter(a => a.accepted).length} ready</span>
+                )}
               </h4>
               {(meeting.action_items ?? []).length > 0 && (
                 <div className="action-push">
                   <div className="select-wrap">
-                    <select
-                      className="select"
-                      value={pushSectionId}
-                      onChange={e => setPushSectionId(e.target.value)}
-                    >
+                    <select className="select" value={pushSectionId} onChange={e => setPushSectionId(e.target.value)}>
                       {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                     </select>
                   </div>
@@ -429,20 +476,15 @@ Known team members: ${teamNames}. If an assignee isn't named in the transcript, 
                 </div>
               )}
             </div>
-            <div style={{ marginTop: 12 }}>
+            <div className="mtg-action-body">
               {(meeting.action_items ?? []).length === 0 ? (
-                <span className="hint">No action items yet.</span>
+                <span className="hint">No action items yet — process a transcript first.</span>
               ) : (
                 <ul className="action-list">
                   {(meeting.action_items ?? []).map(a => (
                     <li key={a.id} className={cls('action-item', !a.accepted && 'action-item--off')}>
-                      <button
-                        className="action-item__check"
-                        onClick={() => updateItem(a.id, { accepted: !a.accepted })}
-                      >
-                        {a.accepted
-                          ? <Icon name="check-circle" size={15} />
-                          : <Icon name="circle" size={15} />}
+                      <button className="action-item__check" onClick={() => updateItem(a.id, { accepted: !a.accepted })}>
+                        {a.accepted ? <Icon name="check-circle" size={15} /> : <Icon name="circle" size={15} />}
                       </button>
                       <div className="action-item__main">
                         <input
@@ -457,21 +499,21 @@ Known team members: ${teamNames}. If an assignee isn't named in the transcript, 
                           onChange={e => updateItem(a.id, { description: e.target.value })}
                         />
                         <div className="action-item__row">
-                          <span style={{ color: 'var(--muted)' }}>Assignee</span>
+                          <span className="action-item__label">Assignee</span>
                           <input
                             className="action-item__small"
                             value={a.assigneeName}
                             onChange={e => updateItem(a.id, { assigneeName: e.target.value })}
                             placeholder="Name…"
                           />
-                          <span style={{ color: 'var(--muted)' }}>Due in</span>
+                          <span className="action-item__label">Due in</span>
                           <input
                             type="number"
                             className="action-item__small action-item__small--num"
                             value={a.dueInDays}
                             onChange={e => updateItem(a.id, { dueInDays: Number(e.target.value) })}
                           />
-                          <span style={{ color: 'var(--muted)' }}>days</span>
+                          <span className="action-item__label">days</span>
                           <div className="select-wrap">
                             <select
                               className="select"
@@ -481,11 +523,7 @@ Known team members: ${teamNames}. If an assignee isn't named in the transcript, 
                               {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
                             </select>
                           </div>
-                          <button
-                            className="icon-btn icon-btn--sm"
-                            onClick={() => removeItem(a.id)}
-                            title="Remove"
-                          >
+                          <button className="icon-btn icon-btn--sm" onClick={() => removeItem(a.id)} title="Remove">
                             <Icon name="x" size={12} />
                           </button>
                         </div>
@@ -516,20 +554,20 @@ function CreateMeetingModal({
   now.setHours(now.getHours() + 1, 0, 0, 0)
   const defaultDate = now.toISOString().slice(0, 16)
 
-  const [form, setForm] = useState({
-    title: '', date: defaultDate, attendees: [currentUserId], agenda: '',
-  })
+  const [form, setForm]           = useState({ title: '', date: defaultDate, attendees: [currentUserId] })
+  const [agendaItems, setAgendaItems] = useState(['', '', '', ''])
 
   useEffect(() => {
-    if (open) setForm({ title: '', date: defaultDate, attendees: [currentUserId], agenda: '' })
+    if (open) {
+      setForm({ title: '', date: defaultDate, attendees: [currentUserId] })
+      setAgendaItems(['', '', '', ''])
+    }
   }, [open])
 
   function toggleAttendee(id: string) {
     setForm(f => ({
       ...f,
-      attendees: f.attendees.includes(id)
-        ? f.attendees.filter(a => a !== id)
-        : [...f.attendees, id],
+      attendees: f.attendees.includes(id) ? f.attendees.filter(a => a !== id) : [...f.attendees, id],
     }))
   }
 
@@ -544,7 +582,7 @@ function CreateMeetingModal({
           <button
             className="btn btn--primary"
             disabled={!form.title.trim()}
-            onClick={() => onCreate(form)}
+            onClick={() => onCreate({ ...form, agenda: agendaItems.join('\n') })}
           >
             Create meeting
           </button>
@@ -576,20 +614,33 @@ function CreateMeetingModal({
               className={cls('attendee', form.attendees.includes(m.id) && 'attendee--on')}
               onClick={() => toggleAttendee(m.id)}
             >
-              <Avatar user={m} size={22} />
+              <Avatar user={m} size={20} />
               <span>{m.name.split(' ')[0]}</span>
             </button>
           ))}
         </div>
         <label>Agenda</label>
-        <textarea
-          className="input"
-          rows={3}
-          value={form.agenda}
-          onChange={e => setForm(f => ({ ...f, agenda: e.target.value }))}
-          placeholder="Topics to cover…"
-          style={{ resize: 'vertical' }}
-        />
+        <ul className="agenda-list">
+          {agendaItems.map((item, i) => (
+            <li key={i} className="agenda-item">
+              <span className="agenda-item__num">{i + 1}</span>
+              <input
+                className="agenda-item__input"
+                value={item}
+                onChange={e => setAgendaItems(prev => { const n = [...prev]; n[i] = e.target.value; return n })}
+                placeholder={`Item ${i + 1}`}
+              />
+              {agendaItems.length > 1 && (
+                <button className="icon-btn icon-btn--sm" onClick={() => setAgendaItems(prev => prev.filter((_, idx) => idx !== i))}>
+                  <Icon name="x" size={11} />
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+        <button className="agenda-add" onClick={() => setAgendaItems(prev => [...prev, ''])}>
+          <Icon name="plus" size={12} /> Add item
+        </button>
       </div>
     </Modal>
   )

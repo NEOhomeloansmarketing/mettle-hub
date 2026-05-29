@@ -514,6 +514,25 @@ button { font-family: inherit; }
 .attendee { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 4px; background: var(--bg-3); border: 1px solid var(--line-soft); border-radius: 999px; color: var(--muted); font-size: 12px; cursor: pointer; font-family: inherit; }
 .attendee--on { background: var(--accent-soft); border: 1px solid var(--accent-line); color: var(--accent-ink); }
 .prose { font-size: 13.5px; line-height: 1.65; color: var(--fg-2); margin: 0; white-space: pre-wrap; }
+/* Agenda line items */
+.agenda-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.agenda-item { display: flex; align-items: center; gap: 8px; }
+.agenda-item__num { font-size: 11px; font-weight: 700; color: var(--muted); width: 16px; text-align: right; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.agenda-item__input { flex: 1; background: var(--bg-3); border: 1px solid var(--line-soft); border-radius: var(--r-sm); padding: 7px 10px; font-size: 13px; color: var(--fg); font-family: inherit; outline: none; transition: border-color 0.15s; }
+.agenda-item__input:focus { border-color: var(--accent-line); background: var(--bg-card); }
+.agenda-item__input::placeholder { color: var(--muted); }
+.agenda-add { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: var(--accent); background: none; border: none; cursor: pointer; padding: 6px 0 0; font-family: inherit; opacity: 0.8; }
+.agenda-add:hover { opacity: 1; }
+
+/* Meeting detail cleanup */
+.mtg-detail__head-left { flex: 1; min-width: 0; }
+.attendee-row--inline { display: inline-flex; gap: 3px; }
+.mtg-transcript { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+.mtg-summary { margin-top: 12px; }
+.mtg-action-body { margin-top: 12px; }
+.mtg-ai-count { font-size: 11px; font-weight: 500; color: var(--muted); margin-left: 6px; }
+.action-item__label { color: var(--muted); font-size: 11px; }
+
 .action-push { display: flex; align-items: center; gap: 6px; }
 .action-push .select-wrap { min-width: 180px; }
 .action-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
