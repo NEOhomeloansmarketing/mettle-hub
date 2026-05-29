@@ -196,36 +196,74 @@ function MeetingDetail({
   const [processing, setProcessing] = useState(false)
   const [pushSectionId, setPushSectionId] = useState(sections[0]?.id ?? '')
 
-  function parseAgendaItems(raw: string): string[] {
-    const lines = (raw ?? '').split('\n')
-    const items = lines.length > 0 && lines.some(l => l.trim()) ? lines : []
-    while (items.length < 4) items.push('')
-    return items
+  interface AgendaItem { title: string; description: string }
+
+  function parseAgendaItems(raw: string): AgendaItem[] {
+    if (raw) {
+      // Try JSON (new format)
+      try {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed)) {
+          const items: AgendaItem[] = parsed.map((p: any) =>
+            typeof p === 'string'
+              ? { title: p, description: '' }
+              : { title: p.title ?? '', description: p.description ?? '' }
+          )
+          while (items.length < 4) items.push({ title: '', description: '' })
+          return items
+        }
+      } catch {}
+      // Fall back: plain newline-separated strings (old format)
+      const lines = raw.split('\n')
+      const items: AgendaItem[] = lines.map(l => ({ title: l, description: '' }))
+      while (items.length < 4) items.push({ title: '', description: '' })
+      return items
+    }
+    return [{ title: '', description: '' }, { title: '', description: '' }, { title: '', description: '' }, { title: '', description: '' }]
   }
 
-  const [agendaItems, setAgendaItems] = useState<string[]>(() => parseAgendaItems(meeting.agenda ?? ''))
-
-  function saveAgenda(items: string[]) {
-    onUpdate({ agenda: items.join('\n') })
+  function serializeAgenda(items: AgendaItem[]): string {
+    return JSON.stringify(items)
   }
 
-  function setAgendaItem(i: number, val: string) {
-    setAgendaItems(prev => { const n = [...prev]; n[i] = val; return n })
+  const [agendaItems, setAgendaItems]   = useState<AgendaItem[]>(() => parseAgendaItems(meeting.agenda ?? ''))
+  const [expandedAgenda, setExpandedAgenda] = useState<Set<number>>(new Set())
+
+  function saveAgenda(items: AgendaItem[]) {
+    onUpdate({ agenda: serializeAgenda(items) })
+  }
+
+  function setAgendaField(i: number, field: keyof AgendaItem, val: string) {
+    setAgendaItems(prev => { const n = [...prev]; n[i] = { ...n[i], [field]: val }; return n })
   }
 
   function removeAgendaItem(i: number) {
     const next = agendaItems.filter((_, idx) => idx !== i)
     setAgendaItems(next)
     saveAgenda(next)
+    setExpandedAgenda(prev => {
+      const s = new Set<number>()
+      prev.forEach(idx => { if (idx < i) s.add(idx); else if (idx > i) s.add(idx - 1) })
+      return s
+    })
+  }
+
+  function toggleAgendaExpand(i: number) {
+    setExpandedAgenda(prev => {
+      const s = new Set(prev)
+      s.has(i) ? s.delete(i) : s.add(i)
+      return s
+    })
   }
 
   function addAgendaItem() {
-    setAgendaItems(prev => [...prev, ''])
+    setAgendaItems(prev => [...prev, { title: '', description: '' }])
   }
 
   useEffect(() => {
     setTitle(meeting.title)
     setAgendaItems(parseAgendaItems(meeting.agenda ?? ''))
+    setExpandedAgenda(new Set())
     setTranscript(meeting.transcript ?? '')
   }, [meeting.id])
 
@@ -388,23 +426,46 @@ Known team members: ${teamNames}. If an assignee isn't named in the transcript, 
           <section className="card card--padded">
             <h4 className="card__h">Agenda</h4>
             <ul className="agenda-list">
-              {agendaItems.map((item, i) => (
-                <li key={i} className="agenda-item">
-                  <span className="agenda-item__num">{i + 1}</span>
-                  <input
-                    className="agenda-item__input"
-                    value={item}
-                    onChange={e => setAgendaItem(i, e.target.value)}
-                    onBlur={() => saveAgenda(agendaItems)}
-                    placeholder={`Item ${i + 1}`}
-                  />
-                  {agendaItems.length > 1 && (
-                    <button className="icon-btn icon-btn--sm" onClick={() => removeAgendaItem(i)} title="Remove">
-                      <Icon name="x" size={11} />
-                    </button>
-                  )}
-                </li>
-              ))}
+              {agendaItems.map((item, i) => {
+                const expanded = expandedAgenda.has(i)
+                return (
+                  <li key={i} className={cls('agenda-item', expanded && 'agenda-item--open')}>
+                    <div className="agenda-item__row">
+                      <span className="agenda-item__num">{i + 1}</span>
+                      <input
+                        className="agenda-item__input"
+                        value={item.title}
+                        onChange={e => setAgendaField(i, 'title', e.target.value)}
+                        onBlur={() => saveAgenda(agendaItems)}
+                        placeholder={`Topic ${i + 1}`}
+                      />
+                      <button
+                        className={cls('agenda-item__expand', expanded && 'agenda-item__expand--open')}
+                        onClick={() => toggleAgendaExpand(i)}
+                        title={expanded ? 'Collapse' : 'Add description'}
+                      >
+                        <Icon name="chev-down" size={12} />
+                      </button>
+                      {agendaItems.length > 1 && (
+                        <button className="icon-btn icon-btn--sm" onClick={() => removeAgendaItem(i)} title="Remove">
+                          <Icon name="x" size={11} />
+                        </button>
+                      )}
+                    </div>
+                    {expanded && (
+                      <textarea
+                        className="agenda-item__desc"
+                        rows={3}
+                        value={item.description}
+                        onChange={e => setAgendaField(i, 'description', e.target.value)}
+                        onBlur={() => saveAgenda(agendaItems)}
+                        placeholder="Notes, context, or talking points…"
+                        autoFocus
+                      />
+                    )}
+                  </li>
+                )
+              })}
             </ul>
             <button className="agenda-add" onClick={addAgendaItem}>
               <Icon name="plus" size={12} /> Add item
@@ -554,13 +615,21 @@ function CreateMeetingModal({
   now.setHours(now.getHours() + 1, 0, 0, 0)
   const defaultDate = now.toISOString().slice(0, 16)
 
+  interface ModalAgendaItem { title: string; description: string }
+  const blankItems = (): ModalAgendaItem[] => [
+    { title: '', description: '' }, { title: '', description: '' },
+    { title: '', description: '' }, { title: '', description: '' },
+  ]
+
   const [form, setForm]           = useState({ title: '', date: defaultDate, attendees: [currentUserId] })
-  const [agendaItems, setAgendaItems] = useState(['', '', '', ''])
+  const [agendaItems, setAgendaItems] = useState<ModalAgendaItem[]>(blankItems)
+  const [expandedModal, setExpandedModal] = useState<Set<number>>(new Set())
 
   useEffect(() => {
     if (open) {
       setForm({ title: '', date: defaultDate, attendees: [currentUserId] })
-      setAgendaItems(['', '', '', ''])
+      setAgendaItems(blankItems())
+      setExpandedModal(new Set())
     }
   }, [open])
 
@@ -582,7 +651,7 @@ function CreateMeetingModal({
           <button
             className="btn btn--primary"
             disabled={!form.title.trim()}
-            onClick={() => onCreate({ ...form, agenda: agendaItems.join('\n') })}
+            onClick={() => onCreate({ ...form, agenda: JSON.stringify(agendaItems) })}
           >
             Create meeting
           </button>
@@ -621,24 +690,45 @@ function CreateMeetingModal({
         </div>
         <label>Agenda</label>
         <ul className="agenda-list">
-          {agendaItems.map((item, i) => (
-            <li key={i} className="agenda-item">
-              <span className="agenda-item__num">{i + 1}</span>
-              <input
-                className="agenda-item__input"
-                value={item}
-                onChange={e => setAgendaItems(prev => { const n = [...prev]; n[i] = e.target.value; return n })}
-                placeholder={`Item ${i + 1}`}
-              />
-              {agendaItems.length > 1 && (
-                <button className="icon-btn icon-btn--sm" onClick={() => setAgendaItems(prev => prev.filter((_, idx) => idx !== i))}>
-                  <Icon name="x" size={11} />
-                </button>
-              )}
-            </li>
-          ))}
+          {agendaItems.map((item, i) => {
+            const exp = expandedModal.has(i)
+            return (
+              <li key={i} className={cls('agenda-item', exp && 'agenda-item--open')}>
+                <div className="agenda-item__row">
+                  <span className="agenda-item__num">{i + 1}</span>
+                  <input
+                    className="agenda-item__input"
+                    value={item.title}
+                    onChange={e => setAgendaItems(prev => { const n = [...prev]; n[i] = { ...n[i], title: e.target.value }; return n })}
+                    placeholder={`Topic ${i + 1}`}
+                  />
+                  <button
+                    className={cls('agenda-item__expand', exp && 'agenda-item__expand--open')}
+                    onClick={() => setExpandedModal(prev => { const s = new Set(prev); s.has(i) ? s.delete(i) : s.add(i); return s })}
+                  >
+                    <Icon name="chev-down" size={12} />
+                  </button>
+                  {agendaItems.length > 1 && (
+                    <button className="icon-btn icon-btn--sm" onClick={() => setAgendaItems(prev => prev.filter((_, idx) => idx !== i))}>
+                      <Icon name="x" size={11} />
+                    </button>
+                  )}
+                </div>
+                {exp && (
+                  <textarea
+                    className="agenda-item__desc"
+                    rows={2}
+                    value={item.description}
+                    onChange={e => setAgendaItems(prev => { const n = [...prev]; n[i] = { ...n[i], description: e.target.value }; return n })}
+                    placeholder="Notes or talking points…"
+                    autoFocus
+                  />
+                )}
+              </li>
+            )
+          })}
         </ul>
-        <button className="agenda-add" onClick={() => setAgendaItems(prev => [...prev, ''])}>
+        <button className="agenda-add" onClick={() => setAgendaItems(prev => [...prev, { title: '', description: '' }])}>
           <Icon name="plus" size={12} /> Add item
         </button>
       </div>

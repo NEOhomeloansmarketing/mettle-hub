@@ -515,12 +515,21 @@ button { font-family: inherit; }
 .attendee--on { background: var(--accent-soft); border: 1px solid var(--accent-line); color: var(--accent-ink); }
 .prose { font-size: 13.5px; line-height: 1.65; color: var(--fg-2); margin: 0; white-space: pre-wrap; }
 /* Agenda line items */
-.agenda-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
-.agenda-item { display: flex; align-items: center; gap: 8px; }
+.agenda-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.agenda-item { display: flex; flex-direction: column; border: 1px solid transparent; border-radius: var(--r-md); transition: border-color 0.15s; }
+.agenda-item--open { border-color: var(--accent-line); background: var(--accent-soft); }
+.agenda-item__row { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
+.agenda-item--open .agenda-item__row { padding: 6px 8px 4px; }
 .agenda-item__num { font-size: 11px; font-weight: 700; color: var(--muted); width: 16px; text-align: right; flex-shrink: 0; font-variant-numeric: tabular-nums; }
 .agenda-item__input { flex: 1; background: var(--bg-3); border: 1px solid var(--line-soft); border-radius: var(--r-sm); padding: 7px 10px; font-size: 13px; color: var(--fg); font-family: inherit; outline: none; transition: border-color 0.15s; }
 .agenda-item__input:focus { border-color: var(--accent-line); background: var(--bg-card); }
 .agenda-item__input::placeholder { color: var(--muted); }
+.agenda-item--open .agenda-item__input { background: transparent; border-color: transparent; font-weight: 600; }
+.agenda-item__expand { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 5px; background: transparent; border: none; color: var(--muted); cursor: pointer; transition: transform 0.2s, color 0.15s; flex-shrink: 0; }
+.agenda-item__expand:hover { color: var(--fg); background: var(--bg-hover); }
+.agenda-item__expand--open { transform: rotate(180deg); color: var(--accent-ink); }
+.agenda-item__desc { width: 100%; background: transparent; border: none; border-top: 1px solid var(--accent-line); padding: 8px 10px 10px 40px; font-size: 12.5px; color: var(--fg-2); font-family: inherit; outline: none; resize: vertical; line-height: 1.55; }
+.agenda-item__desc::placeholder { color: var(--muted); }
 .agenda-add { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: var(--accent); background: none; border: none; cursor: pointer; padding: 6px 0 0; font-family: inherit; opacity: 0.8; }
 .agenda-add:hover { opacity: 1; }
 
