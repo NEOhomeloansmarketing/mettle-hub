@@ -32,15 +32,15 @@ export async function POST(req: NextRequest) {
   }
 
   const {
-    loan_id,
+    email,
     campaign,
     borrower_name,
     milestone: milestoneRaw,
     loan_amount,
   } = body
 
-  if (!loan_id || !campaign || !milestoneRaw) {
-    return NextResponse.json({ error: 'loan_id, campaign, and milestone are required' }, { status: 400 })
+  if (!email || !campaign || !milestoneRaw) {
+    return NextResponse.json({ error: 'email, campaign, and milestone are required' }, { status: 400 })
   }
 
   const milestone = normaliseMilestone(String(milestoneRaw))
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
     .from('campaign_loans')
     .upsert(
       {
-        loan_id:       String(loan_id),
+        loan_id:       String(email).toLowerCase(),
         campaign:      String(campaign),
         borrower_name: borrower_name ? String(borrower_name) : null,
         milestone,
@@ -70,5 +70,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true, milestone, loan_id, campaign })
+  return NextResponse.json({ ok: true, milestone, email, campaign })
 }
