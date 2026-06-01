@@ -12,6 +12,15 @@ function normaliseMilestone(raw: string): string | null {
   return null
 }
 
+// Map BNTouch/Zapier campaign values to our canonical campaign keys
+function normaliseCampaign(raw: string): string {
+  const s = (raw ?? '').toLowerCase().trim()
+  if (s.includes('entrepreneur'))                              return 'FB-Entrepreneur-Ad-APP'
+  if (s.includes('physician') || s.includes('medpro'))        return 'PhysicianFB-APP'
+  if (s.includes('whitecoat') || s.includes('white coat') || s.includes('wci') || s.includes('investor')) return 'WCI'
+  return raw.trim() // pass through unknown campaigns as-is
+}
+
 function serviceClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -52,6 +61,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, skipped: true, reason: `Unrecognised milestone: ${milestoneRaw}` })
   }
 
+  const normalisedCampaign = normaliseCampaign(String(campaign))
+
   const supabase = serviceClient()
 
   const { error } = await supabase
@@ -59,7 +70,7 @@ export async function POST(req: NextRequest) {
     .upsert(
       {
         loan_id:       String(email).toLowerCase(),
-        campaign:      String(campaign),
+        campaign:      normalisedCampaign,
         borrower_name: borrower_name ? String(borrower_name) : null,
         milestone,
         loan_amount:   loan_amount ? Number(loan_amount) : null,
@@ -74,5 +85,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true, milestone, email, campaign })
+  return NextResponse.json({ ok: true, milestone, email, campaign: normalisedCampaign, raw_campaign: campaign })
 }
