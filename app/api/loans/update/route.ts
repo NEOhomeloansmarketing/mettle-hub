@@ -37,6 +37,7 @@ export async function POST(req: NextRequest) {
     borrower_name,
     milestone: milestoneRaw,
     loan_amount,
+    funded_date,
   } = body
 
   if (!email || !campaign || !milestoneRaw) {
@@ -60,6 +61,7 @@ export async function POST(req: NextRequest) {
         borrower_name: borrower_name ? String(borrower_name) : null,
         milestone,
         loan_amount:   loan_amount ? Number(loan_amount) : null,
+        funded_date:   funded_date ? String(funded_date) : null,
         updated_at:    new Date().toISOString(),
       },
       { onConflict: 'loan_id' }
