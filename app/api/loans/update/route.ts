@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
         borrower_name: borrower_name ? String(borrower_name) : null,
         milestone,
         loan_amount:   loan_amount ? Number(loan_amount) : null,
-        funded_date:   funded_date ? String(funded_date) : null,
+        funded_date:   (funded_date && funded_date !== '0' && funded_date !== '0000-00-00') ? String(funded_date) : null,
         updated_at:    new Date().toISOString(),
       },
       { onConflict: 'loan_id' }
