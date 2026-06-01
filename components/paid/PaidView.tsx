@@ -119,6 +119,16 @@ export function PaidView() {
   })
   const [showHidden, setShowHidden] = useState(false)
 
+  type PipelineCounts = { application: number; processing: number; funded: number; funded_this_month: number }
+  const [pipeline, setPipeline] = useState<Record<string, PipelineCounts>>({})
+
+  useEffect(() => {
+    fetch('/api/loans/counts')
+      .then(r => r.json())
+      .then(d => { if (d.campaigns) setPipeline(d.campaigns) })
+      .catch(() => {})
+  }, [])
+
   function toggleHide(id: string) {
     setHidden(prev => {
       const next = new Set(prev)
@@ -408,6 +418,39 @@ export function PaidView() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Loan Pipeline ─────────────────────────── */}
+      {Object.keys(pipeline).length > 0 && (
+        <div className="pipeline-wrap">
+          <h2 className="paid-section-title">Loan Pipeline</h2>
+          <div className="pipeline-grid">
+            {Object.entries(pipeline).map(([camp, counts]) => (
+              <div key={camp} className="pipeline-card">
+                <div className="pipeline-card__name">{camp}</div>
+                <div className="pipeline-card__counts">
+                  <div className="pipeline-stat">
+                    <div className="pipeline-stat__num">{counts.application}</div>
+                    <div className="pipeline-stat__label">Applications</div>
+                  </div>
+                  <div className="pipeline-divider" />
+                  <div className="pipeline-stat">
+                    <div className="pipeline-stat__num">{counts.processing}</div>
+                    <div className="pipeline-stat__label">Processing</div>
+                  </div>
+                  <div className="pipeline-divider" />
+                  <div className="pipeline-stat pipeline-stat--funded">
+                    <div className="pipeline-stat__num">{counts.funded}</div>
+                    <div className="pipeline-stat__label">Funded</div>
+                    {counts.funded_this_month > 0 && (
+                      <div className="pipeline-stat__sub">{counts.funded_this_month} this month</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
