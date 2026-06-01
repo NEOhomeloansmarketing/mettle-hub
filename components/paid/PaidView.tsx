@@ -292,6 +292,40 @@ export function PaidView() {
         ))}
       </div>
 
+      {/* ── Pipeline totals strip ──────────────────── */}
+      {Object.keys(pipeline).length > 0 && (() => {
+        const totals = Object.values(pipeline).reduce(
+          (acc, c) => ({
+            application:       acc.application       + c.application,
+            processing:        acc.processing        + c.processing,
+            funded:            acc.funded            + c.funded,
+            funded_this_month: acc.funded_this_month + c.funded_this_month,
+          }),
+          { application: 0, processing: 0, funded: 0, funded_this_month: 0 }
+        )
+        return (
+          <div className="pipeline-strip">
+            <div className="pipeline-strip__label">All Campaigns</div>
+            <div className="pipeline-strip__stats">
+              <div className="pipeline-strip__stat">
+                <span className="pipeline-strip__num">{totals.application}</span>
+                <span className="pipeline-strip__name">Applications</span>
+              </div>
+              <div className="pipeline-strip__divider" />
+              <div className="pipeline-strip__stat">
+                <span className="pipeline-strip__num">{totals.processing}</span>
+                <span className="pipeline-strip__name">Processing</span>
+              </div>
+              <div className="pipeline-strip__divider" />
+              <div className="pipeline-strip__stat pipeline-strip__stat--funded">
+                <span className="pipeline-strip__num">{totals.funded}</span>
+                <span className="pipeline-strip__name">Funded{totals.funded_this_month > 0 ? ` · ${totals.funded_this_month} this mo` : ''}</span>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       {/* ── AI Insights ────────────────────────────── */}
       {(aiLoading || insights) && (
         <div className="paid-insights">
@@ -422,45 +456,10 @@ export function PaidView() {
         </div>
       )}
 
-      {/* ── Loan Pipeline ─────────────────────────── */}
-      {Object.keys(pipeline).length > 0 && (() => {
-        const totals = Object.values(pipeline).reduce(
-          (acc, c) => ({
-            application:       acc.application       + c.application,
-            processing:        acc.processing        + c.processing,
-            funded:            acc.funded            + c.funded,
-            funded_this_month: acc.funded_this_month + c.funded_this_month,
-          }),
-          { application: 0, processing: 0, funded: 0, funded_this_month: 0 }
-        )
-        return (
+      {/* ── Loan Pipeline by campaign ──────────────── */}
+      {Object.keys(pipeline).length > 0 && (
         <div className="pipeline-wrap">
           <h2 className="paid-section-title">Loan Pipeline</h2>
-
-          {/* Totals card */}
-          <div className="pipeline-card pipeline-card--total">
-            <div className="pipeline-card__name">All Campaigns</div>
-            <div className="pipeline-card__counts">
-              <div className="pipeline-stat">
-                <div className="pipeline-stat__num">{totals.application}</div>
-                <div className="pipeline-stat__label">Applications</div>
-              </div>
-              <div className="pipeline-divider" />
-              <div className="pipeline-stat">
-                <div className="pipeline-stat__num">{totals.processing}</div>
-                <div className="pipeline-stat__label">Processing</div>
-              </div>
-              <div className="pipeline-divider" />
-              <div className="pipeline-stat pipeline-stat--funded">
-                <div className="pipeline-stat__num">{totals.funded}</div>
-                <div className="pipeline-stat__label">Funded</div>
-                {totals.funded_this_month > 0 && (
-                  <div className="pipeline-stat__sub">{totals.funded_this_month} this month</div>
-                )}
-              </div>
-            </div>
-          </div>
-
           <div className="pipeline-grid">
             {Object.entries(pipeline).map(([camp, counts]) => (
               <div key={camp} className="pipeline-card">
@@ -488,8 +487,7 @@ export function PaidView() {
             ))}
           </div>
         </div>
-        )
-      })()}
+      )}
 
       {/* ── Empty ──────────────────────────────────── */}
       {!loading && !error && campaigns.length === 0 && (

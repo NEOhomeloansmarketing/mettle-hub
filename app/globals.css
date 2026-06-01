@@ -1006,9 +1006,16 @@ button { font-family: inherit; }
 .pipeline-stat__label { font-size: 10.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
 .pipeline-stat__sub { font-size: 10.5px; color: oklch(0.5 0.14 145); font-weight: 600; margin-top: 2px; }
 .pipeline-divider { width: 1px; background: var(--line-soft); align-self: stretch; flex-shrink: 0; }
-.pipeline-card--total { border-color: var(--accent-line); }
-.pipeline-card--total .pipeline-card__name { background: var(--accent-soft); color: var(--accent-ink); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
-.pipeline-card--total .pipeline-stat__num { font-size: 40px; }
+/* Pipeline totals strip (inline below ad stats) */
+.pipeline-strip { display: flex; align-items: center; gap: 0; background: var(--bg-card); border: 1px solid var(--accent-line); border-radius: var(--r-lg); overflow: hidden; }
+.pipeline-strip__label { padding: 12px 20px; font-size: 11px; font-weight: 700; color: var(--accent-ink); text-transform: uppercase; letter-spacing: 0.07em; background: var(--accent-soft); white-space: nowrap; border-right: 1px solid var(--accent-line); }
+.pipeline-strip__stats { display: flex; align-items: center; flex: 1; }
+.pipeline-strip__stat { display: flex; align-items: center; gap: 8px; padding: 14px 24px; flex: 1; }
+.pipeline-strip__stat--funded { background: oklch(0.97 0.02 145); }
+.pipeline-strip__num { font-size: 28px; font-weight: 750; color: var(--fg); letter-spacing: -0.03em; line-height: 1; }
+.pipeline-strip__stat--funded .pipeline-strip__num { color: oklch(0.45 0.15 145); }
+.pipeline-strip__name { font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.pipeline-strip__divider { width: 1px; height: 40px; background: var(--line-soft); flex-shrink: 0; }
 
 /* Spin utility */
 .spin { animation: spin 0.7s linear infinite; }
