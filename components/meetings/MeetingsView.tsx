@@ -290,21 +290,34 @@ function MeetingDetail({
     setProcessing(true)
     try {
       const teamNames = team.map(m => m.name).join(', ')
+
+      const agendaText = agendaItems
+        .filter(a => a.title.trim())
+        .map((a, i) => `${i + 1}. ${a.title}${a.description ? ` — ${a.description}` : ''}`)
+        .join('\n')
+
       const res = await fetch('/api/ai/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          system: `You read meeting transcripts and extract structured output.
-Return ONLY a JSON object matching this schema (no prose, no fences):
+          system: `You are an expert meeting assistant for a mortgage marketing team. Your job is to extract EVERY action item from meeting transcripts — miss nothing.
+
+Return ONLY a JSON object (no prose, no fences):
 {
-  "summary": "3-5 sentence summary",
+  "summary": "3-5 sentence summary of what was discussed and decided",
   "actionItems": [
-    { "title": "...", "description": "...", "assigneeName": "exact team-member name or empty string", "dueInDays": 7, "priority": "Low|Medium|High|Urgent" }
+    { "title": "concise task title", "description": "more detail or context", "assigneeName": "exact team-member name or empty string", "dueInDays": 7, "priority": "Low|Medium|High|Urgent" }
   ]
 }
-Known team members: ${teamNames}. If an assignee isn't named in the transcript, leave assigneeName as "".`,
-          user: 'Transcript:\n' + transcript.slice(0, 12000),
-          maxTokens: 1400,
+
+Rules:
+- Extract EVERY task, follow-up, and deliverable mentioned — including recurring ones like blog posts, content creation, ad updates, reports.
+- If an agenda topic was discussed and needs work done on it, create an action item for it even if not explicitly called out as a "task".
+- Blog posts, social content, weekly reports, campaign updates = always create tasks for these when mentioned.
+- Known team members: ${teamNames}. Match names loosely (first name is enough). Leave assigneeName as "" if unclear.
+- Be thorough — it is better to have too many action items than to miss one.`,
+          user: `${agendaText ? `AGENDA:\n${agendaText}\n\n` : ''}TRANSCRIPT:\n${transcript.slice(0, 14000)}`,
+          maxTokens: 3000,
         }),
       })
       const json = await res.json()
