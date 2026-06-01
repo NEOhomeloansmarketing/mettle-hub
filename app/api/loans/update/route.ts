@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-// Normalise milestone strings coming from BNTouch to our three canonical values
+// Map exact BNTouch milestone strings to our canonical values
+// BNTouch stages: Lead, Prospect, Application, In Processing, Funded Loan, Long Term Follow Up
+// We only track: Application, In Processing, Funded Loan
 function normaliseMilestone(raw: string): string | null {
   const s = (raw ?? '').toLowerCase().trim()
-  if (s.includes('funded') || s.includes('closed') || s.includes('fund'))                      return 'funded'
-  if (s.includes('long') || s.includes('follow up') || s.includes('followup') || s.includes('ltf')) return 'long_term_follow_up'
-  if (s.includes('process'))                                                                    return 'processing'
-  if (s.includes('application') || s.includes('lead') || s.includes('submitted') || s === 'new') return 'application'
+  if (s === 'application')   return 'application'
+  if (s === 'in processing') return 'processing'
+  if (s === 'funded loan')   return 'funded'
   return null
 }
 
