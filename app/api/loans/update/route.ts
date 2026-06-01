@@ -7,7 +7,7 @@ function normaliseMilestone(raw: string): string | null {
   if (s.includes('funded') || s.includes('closed') || s.includes('fund'))                      return 'funded'
   if (s.includes('long') || s.includes('follow up') || s.includes('followup') || s.includes('ltf')) return 'long_term_follow_up'
   if (s.includes('process'))                                                                    return 'processing'
-  if (s.includes('app') || s.includes('new') || s.includes('lead') || s.includes('submitted')) return 'application'
+  if (s.includes('application') || s.includes('lead') || s.includes('submitted') || s === 'new') return 'application'
   return null
 }
 
