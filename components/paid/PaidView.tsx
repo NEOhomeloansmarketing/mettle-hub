@@ -120,7 +120,7 @@ export function PaidView() {
   const [showHidden, setShowHidden] = useState(false)
 
   type PipelineCounts = { application: number; processing: number; funded: number; funded_this_month: number }
-  const PIPELINE_CAMPAIGNS = ['FB-Entrepreneur-Ad-APP', 'PhysicianFB-APP', 'WCI']
+  const PIPELINE_CAMPAIGNS = ['FB-Entrepreneur-Ad-APP', 'PhysicianFB-APP']
   const emptyPipeline = (): Record<string, PipelineCounts> =>
     Object.fromEntries(PIPELINE_CAMPAIGNS.map(c => [c, { application: 0, processing: 0, funded: 0, funded_this_month: 0 }]))
   const [pipeline, setPipeline] = useState<Record<string, PipelineCounts>>(emptyPipeline())
