@@ -252,6 +252,13 @@ export const ADVISOR_PLATFORMS: { value: AdvisorChannelPlatform; label: string; 
   { value: 'other',           label: 'Other',                   icon: '🔗' },
 ]
 
+export interface AdvisorMetadata {
+  team_name?: string
+  business_name?: string
+  competitors?: string
+  [key: string]: string | undefined
+}
+
 export interface Advisor {
   id: string
   name: string
@@ -267,6 +274,7 @@ export interface Advisor {
   bio: string | null
   headshot_url: string | null
   nap_form_url: string | null
+  metadata: AdvisorMetadata | null
   created_at: string
   updated_at: string
 }
