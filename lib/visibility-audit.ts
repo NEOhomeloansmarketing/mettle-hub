@@ -221,11 +221,12 @@ Return this exact JSON structure (all fields required, no markdown fences):
     system: systemPrompt,
     messages: [
       { role: 'user', content: userPrompt },
-      { role: 'assistant', content: [{ type: 'text', text: '{' }] },
     ],
   })
 
-  const raw = '{' + (response.content[0] as { type: string; text: string }).text
+  let raw = (response.content[0] as { type: string; text: string }).text
+  // Strip markdown code fences if the model wrapped the JSON
+  raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
   const parsed = JSON.parse(repairJson(raw)) as AuditResult
   return parsed
 }
