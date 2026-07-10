@@ -1,7 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk'
 import type { Advisor, AdvisorChannel, AuditResult } from '@/lib/types'
-
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 function repairJson(raw: string): string {
   return raw
@@ -215,17 +212,39 @@ Return this exact JSON structure (all fields required, no markdown fences):
   ]
 }`
 
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 3500,
-    system: systemPrompt,
-    messages: [
-      { role: 'user', content: userPrompt },
-    ],
-  })
+  // Use fetch directly so this works in both Node.js and Edge runtimes.
+  // AbortController gives a clean error at 27s instead of a hard Edge cut at 30s.
+  const abort = new AbortController()
+  const timer = setTimeout(() => abort.abort(), 27_000)
 
-  let raw = (response.content[0] as { type: string; text: string }).text
-  // Strip markdown code fences if the model wrapped the JSON
+  let res: Response
+  try {
+    res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      signal: abort.signal,
+      headers: {
+        'x-api-key': process.env.ANTHROPIC_API_KEY!,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 3500,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userPrompt }],
+      }),
+    })
+  } finally {
+    clearTimeout(timer)
+  }
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as { error?: { message?: string } }
+    throw new Error(err.error?.message ?? `Anthropic API error ${res.status}`)
+  }
+
+  const body = await res.json() as { content: { type: string; text: string }[] }
+  let raw = body.content[0].text
   raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
   const parsed = JSON.parse(repairJson(raw)) as AuditResult
   return parsed
