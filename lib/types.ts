@@ -230,6 +230,122 @@ export const CHANNELS: Record<string, { id: string; label: string; short: string
 export const STATUSES: TaskStatus[] = ['To Do', 'In Progress', 'In Review', 'Done']
 export const PRIORITIES: TaskPriority[] = ['Low', 'Medium', 'High', 'Urgent']
 
+// ── Marketing Audits ──────────────────────────────────────────────
+
+export type AdvisorChannelPlatform =
+  | 'website' | 'google_business' | 'linkedin' | 'facebook' | 'instagram'
+  | 'twitter' | 'yelp' | 'zillow' | 'realtor' | 'youtube' | 'tiktok' | 'nextdoor' | 'other'
+
+export const ADVISOR_PLATFORMS: { value: AdvisorChannelPlatform; label: string; icon: string }[] = [
+  { value: 'google_business', label: 'Google Business Profile', icon: '🟡' },
+  { value: 'linkedin',        label: 'LinkedIn',                icon: '🔵' },
+  { value: 'website',         label: 'Personal Website',        icon: '🌐' },
+  { value: 'facebook',        label: 'Facebook',                icon: '📘' },
+  { value: 'instagram',       label: 'Instagram',               icon: '📸' },
+  { value: 'yelp',            label: 'Yelp',                    icon: '⭐' },
+  { value: 'zillow',          label: 'Zillow',                  icon: '🏠' },
+  { value: 'realtor',         label: 'Realtor.com',             icon: '🏡' },
+  { value: 'youtube',         label: 'YouTube',                 icon: '▶️' },
+  { value: 'twitter',         label: 'X (Twitter)',             icon: '✖️' },
+  { value: 'tiktok',          label: 'TikTok',                  icon: '🎵' },
+  { value: 'nextdoor',        label: 'Nextdoor',                icon: '🏘️' },
+  { value: 'other',           label: 'Other',                   icon: '🔗' },
+]
+
+export interface Advisor {
+  id: string
+  name: string
+  title: string | null
+  email: string | null
+  phone: string | null
+  nmls_number: string | null
+  street_address: string | null
+  city: string | null
+  state: string | null
+  zip: string | null
+  service_area: string | null
+  bio: string | null
+  headshot_url: string | null
+  nap_form_url: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface AdvisorChannel {
+  id: string
+  advisor_id: string
+  platform: AdvisorChannelPlatform
+  label: string | null
+  url: string
+  created_at: string
+}
+
+export type AuditStatus = 'PENDING' | 'RUNNING' | 'COMPLETE' | 'FAILED'
+
+export interface VisibilityAudit {
+  id: string
+  advisor_id: string
+  status: AuditStatus
+  score: number | null
+  extracted_nap: Record<string, string> | null
+  score_breakdown: AuditScoreBreakdown | null
+  action_items: AuditActionItem[] | null
+  conflicts: AuditConflict[] | null
+  socials: AuditSocialStatus[] | null
+  query_visibility: AuditQueryVisibility[] | null
+  raw_result: AuditResult | null
+  created_at: string
+  completed_at: string | null
+}
+
+export interface AuditScoreBreakdown {
+  listingsHealth:    { score: number; max: number; notes: string }
+  reviews:           { score: number; max: number; notes: string }
+  websiteLocal:      { score: number; max: number; notes: string }
+  brandConsistency:  { score: number; max: number; notes: string }
+  aiSearchReadiness: { score: number; max: number; notes: string }
+}
+
+export interface AuditActionItem {
+  rank: number
+  platform: string
+  action: string
+  url?: string
+  impact: 'High' | 'Medium' | 'Low'
+}
+
+export interface AuditConflict {
+  field: string
+  canonical: string
+  issues: Array<{ platform: string; found: string }>
+}
+
+export interface AuditSocialStatus {
+  platform: string
+  url: string
+  status: 'OK' | 'ISSUE' | 'REMOVE' | 'MISSING'
+  notes: string
+}
+
+export interface AuditQueryVisibility {
+  query: string
+  type: 'branded' | 'non_branded' | 'missed'
+  assessment: string
+}
+
+export interface AuditResult {
+  extractedNap: Record<string, string>
+  canonicalBlock: string
+  score: number
+  scoreBreakdown: AuditScoreBreakdown
+  actionItems: AuditActionItem[]
+  conflicts: AuditConflict[]
+  socials: AuditSocialStatus[]
+  queryVisibility: AuditQueryVisibility[]
+  summary: string
+  discoveryQueries: string[]
+}
+
 export const CHANNEL_BRIEFS: Record<string, { audience: string; voice: string; cta: string }> = {
   CRNA: {
     audience: 'Certified Registered Nurse Anesthetists, high-earning healthcare professionals with non-traditional pay structures (W-2 + 1099 mixed), often relocating or buying first home mid-career.',

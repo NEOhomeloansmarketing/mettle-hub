@@ -58,6 +58,12 @@ export function Icon({ name, size = 16, stroke = 1.6, className = '' }: IconProp
     case 'chart-line':   return <svg {...props}><path d="M3 20h18"/><path d="M3 20 8 13l4 3 4-7 5 4"/></svg>
     case 'users':        return <svg {...props}><circle cx="8" cy="8" r="3.2"/><path d="M2 20c0-3 2.5-5 6-5s6 2 6 5"/><circle cx="17" cy="7" r="2.5"/><path d="M22 19c0-2-1.6-3.5-4-3.5"/></svg>
     case 'menu':         return <svg {...props}><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+    case 'audit':        return <svg {...props}><path d="M12 3a9 9 0 1 0 0 18A9 9 0 0 0 12 3Z"/><path d="M12 8v4l3 3"/></svg>
+    case 'pin':          return <svg {...props}><path d="M12 21c-4-4.5-7-8-7-11a7 7 0 0 1 14 0c0 3-3 6.5-7 11Z"/><circle cx="12" cy="10" r="2"/></svg>
+    case 'pencil':       return <svg {...props}><path d="M11 4H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-6"/><path d="M17 3a2 2 0 0 1 3 3l-9 9-4 1 1-4 9-9Z"/></svg>
+    case 'external-link': return <svg {...props}><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+    case 'arrow-left':   return <svg {...props}><path d="M19 12H5"/><path d="m12 5-7 7 7 7"/></svg>
+    case 'alert':        return <svg {...props}><path d="M10.3 3.3 2 18h20L13.7 3.3a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><circle cx="12" cy="17" r="1"/></svg>
     default: return null
   }
 }

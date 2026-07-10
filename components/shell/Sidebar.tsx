@@ -35,7 +35,8 @@ const NAV_SECTIONS = [
   {
     section: 'Intelligence',
     items: [
-      { id: 'agents', label: 'AI Agents', icon: 'agent', href: '/agents' },
+      { id: 'agents', label: 'AI Agents',       icon: 'agent',  href: '/agents' },
+      { id: 'audits', label: 'Marketing Audits', icon: 'audit',  href: '/audits' },
     ],
   },
 ]
