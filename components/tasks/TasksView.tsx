@@ -33,7 +33,7 @@ export function TasksView({ initialSections, initialTasks, team, currentUserId, 
 
   const [sections, setSections] = useState<Section[]>(initialSections)
   const [tasks, setTasks] = useState<TaskRow[]>(initialTasks)
-  const [view, setView] = useState<'mine' | 'team'>('mine')
+  const [view, setView] = useState<'mine' | 'team' | 'done'>('mine')
   const [filter, setFilter] = useState({ status: 'all', priority: 'all', channel: 'all', assignee: 'all' })
   const [createInSection, setCreateInSection] = useState<string | null>(null)
   const [aiPanelOpen, setAiPanelOpen] = useState(false)
@@ -54,6 +54,8 @@ export function TasksView({ initialSections, initialTasks, team, currentUserId, 
 
   const filteredTasks = useMemo(() => {
     return tasks.filter(t => {
+      if (view === 'done') return t.status === 'Done'
+      if (t.status === 'Done') return false
       if (view === 'mine' && t.assignee_id !== currentUserId) return false
       if (view === 'team' && t.assignee_id === currentUserId) return false
       if (filter.status !== 'all' && t.status !== filter.status) return false
@@ -199,16 +201,24 @@ export function TasksView({ initialSections, initialTasks, team, currentUserId, 
                 >
                   Team Tasks
                 </button>
+                <button
+                  className={cls('paid-tab', view === 'done' && 'paid-tab--on')}
+                  onClick={() => setView('done')}
+                >
+                  Finished
+                </button>
               </div>
               <button className="btn btn--ghost" onClick={() => setAiPanelOpen(true)}>
                 <Icon name="sparkle" size={14} /> Ask AI
               </button>
-              <button
-                className="btn btn--primary"
-                onClick={() => setCreateInSection(sortedSections[0]?.id ?? null)}
-              >
-                <Icon name="plus" size={14} /> New task
-              </button>
+              {view !== 'done' && (
+                <button
+                  className="btn btn--primary"
+                  onClick={() => setCreateInSection(sortedSections[0]?.id ?? null)}
+                >
+                  <Icon name="plus" size={14} /> New task
+                </button>
+              )}
             </div>
           </div>
 
@@ -263,6 +273,7 @@ export function TasksView({ initialSections, initialTasks, team, currentUserId, 
                 tasks={tasksBySection[sec.id] ?? []}
                 team={team}
                 sections={sortedSections}
+                readOnly={view === 'done'}
                 onRename={name => renameSection(sec.id, name)}
                 onDelete={() => deleteSection(sec.id)}
                 onMove={dir => moveSection(sec.id, dir)}
@@ -271,15 +282,17 @@ export function TasksView({ initialSections, initialTasks, team, currentUserId, 
                 onUpdateTask={(id, patch) => updateTask(id, patch)}
               />
             ))}
-            <button
-              className="asana-addsection"
-              onClick={() => {
-                const name = window.prompt('Section name?')
-                if (name?.trim()) createSection(name.trim())
-              }}
-            >
-              <Icon name="plus" size={13} /> Add section
-            </button>
+            {view !== 'done' && (
+              <button
+                className="asana-addsection"
+                onClick={() => {
+                  const name = window.prompt('Section name?')
+                  if (name?.trim()) createSection(name.trim())
+                }}
+              >
+                <Icon name="plus" size={13} /> Add section
+              </button>
+            )}
           </div>
         </main>
 
@@ -315,7 +328,7 @@ export function TasksView({ initialSections, initialTasks, team, currentUserId, 
 
 // ── SectionGroup ──────────────────────────────────────────────────
 function SectionGroup({
-  section, isFirst, isLast, tasks, team, sections,
+  section, isFirst, isLast, tasks, team, sections, readOnly,
   onRename, onDelete, onMove, onAddTask, onOpenTask, onUpdateTask,
 }: {
   section: Section
@@ -324,6 +337,7 @@ function SectionGroup({
   tasks: TaskRow[]
   team: TeamMember[]
   sections: Section[]
+  readOnly?: boolean
   onRename: (name: string) => void
   onDelete: () => void
   onMove: (dir: -1 | 1) => void
@@ -414,9 +428,11 @@ function SectionGroup({
               onUpdate={patch => onUpdateTask(t.id, patch)}
             />
           ))}
-          <button className="asana-add" onClick={onAddTask}>
-            <Icon name="plus" size={12} /> Add task
-          </button>
+          {!readOnly && (
+            <button className="asana-add" onClick={onAddTask}>
+              <Icon name="plus" size={12} /> Add task
+            </button>
+          )}
         </div>
       )}
     </div>
