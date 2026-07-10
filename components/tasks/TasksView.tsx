@@ -33,6 +33,7 @@ export function TasksView({ initialSections, initialTasks, team, currentUserId, 
 
   const [sections, setSections] = useState<Section[]>(initialSections)
   const [tasks, setTasks] = useState<TaskRow[]>(initialTasks)
+  const [view, setView] = useState<'mine' | 'team'>('mine')
   const [filter, setFilter] = useState({ status: 'all', priority: 'all', channel: 'all', assignee: 'all' })
   const [createInSection, setCreateInSection] = useState<string | null>(null)
   const [aiPanelOpen, setAiPanelOpen] = useState(false)
@@ -53,13 +54,15 @@ export function TasksView({ initialSections, initialTasks, team, currentUserId, 
 
   const filteredTasks = useMemo(() => {
     return tasks.filter(t => {
+      if (view === 'mine' && t.assignee_id !== currentUserId) return false
+      if (view === 'team' && t.assignee_id === currentUserId) return false
       if (filter.status !== 'all' && t.status !== filter.status) return false
       if (filter.priority !== 'all' && t.priority !== filter.priority) return false
       if (filter.assignee !== 'all' && t.assignee_id !== filter.assignee) return false
       if (filter.channel !== 'all' && t.channel !== filter.channel) return false
       return true
     })
-  }, [tasks, filter])
+  }, [tasks, filter, view, currentUserId])
 
   const tasksBySection = useMemo(() => {
     const map: Record<string, TaskRow[]> = {}
@@ -183,6 +186,20 @@ export function TasksView({ initialSections, initialTasks, team, currentUserId, 
               </p>
             </div>
             <div className="tasks-main__actions">
+              <div className="paid-tabs">
+                <button
+                  className={cls('paid-tab', view === 'mine' && 'paid-tab--on')}
+                  onClick={() => setView('mine')}
+                >
+                  My Tasks
+                </button>
+                <button
+                  className={cls('paid-tab', view === 'team' && 'paid-tab--on')}
+                  onClick={() => setView('team')}
+                >
+                  Team Tasks
+                </button>
+              </div>
               <button className="btn btn--ghost" onClick={() => setAiPanelOpen(true)}>
                 <Icon name="sparkle" size={14} /> Ask AI
               </button>
