@@ -3,10 +3,9 @@ import { createClient as serviceClient } from '@supabase/supabase-js'
 import { runVisibilityAudit } from '@/lib/visibility-audit'
 import type { Advisor, AdvisorChannel } from '@/lib/types'
 
-// Node.js runtime so Anthropic SDK has full access to native networking.
-// maxDuration 60s works on Vercel Pro. If you're on Hobby, upgrade to Pro
-// or requests will timeout at 10s — AI audits typically take 20-40s.
-export const maxDuration = 60
+// Edge runtime gives 30s on all Vercel plans (vs 10s serverless on Hobby).
+// Upgrade to Vercel Pro + switch back to Node.js runtime for a reliable 60s.
+export const runtime = 'edge'
 
 function svc() {
   return serviceClient(
@@ -36,6 +35,15 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
 export async function POST(_req: NextRequest, { params }: Ctx) {
   const { id } = await params
   const db = svc()
+
+  // Mark any stuck RUNNING audits (older than 2 min) as FAILED before starting a new one
+  const staleThreshold = new Date(Date.now() - 2 * 60 * 1000).toISOString()
+  await db
+    .from('visibility_audits')
+    .update({ status: 'FAILED' })
+    .eq('advisor_id', id)
+    .eq('status', 'RUNNING')
+    .lt('created_at', staleThreshold)
 
   const { data: advisor, error: aErr } = await db
     .from('advisors')
