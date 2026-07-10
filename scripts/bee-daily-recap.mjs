@@ -58,15 +58,21 @@ async function beeTool(name, args = {}) {
 
 // ── Email HTML ────────────────────────────────────────────────────
 
-function sectionHeader(label, color = '#4f46e5') {
-  return `<div style="font-size:11px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:1.2px;margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid ${color}20;">${label}</div>`
+function sectionLabel(emoji, text, color = '#4f46e5') {
+  return `<div style="font-size:11px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:1.2px;margin-bottom:14px;padding-bottom:8px;border-bottom:2px solid ${color}22;">${emoji} ${text}</div>`
 }
 
-function bulletPoints(lines) {
-  if (!lines.length) return '<p style="color:#aaa;font-size:13px;margin:0;">Nothing captured.</p>'
-  return `<ul style="margin:0;padding-left:18px;">${lines.map(l =>
-    `<li style="font-size:14px;color:#333;line-height:1.7;margin-bottom:4px;">${l}</li>`
+function bulletList(lines) {
+  if (!lines.length) return '<p style="color:#aaa;font-size:14px;margin:4px 0 0;">Nothing captured.</p>'
+  return `<ul style="margin:4px 0 0;padding-left:20px;">${lines.map(l =>
+    `<li style="font-size:15px;color:#333;line-height:1.75;margin-bottom:2px;">${l}</li>`
   ).join('')}</ul>`
+}
+
+function priorityBadge(priority) {
+  const colors = { High: '#ef4444', Medium: '#f59e0b', Low: '#6b7280' }
+  const c = colors[priority] || colors.Medium
+  return `<span style="display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600;color:#fff;background:${c};white-space:nowrap;">${priority}</span>`
 }
 
 function buildEmail(conversations, tasks, personalItems, daySummary) {
@@ -76,8 +82,8 @@ function buildEmail(conversations, tasks, personalItems, daySummary) {
 
   // ── Day recap ──────────────────────────────────────────────────
   const dayRecapHtml = daySummary
-    ? `<p style="font-size:14px;color:#444;line-height:1.8;margin:0;">${daySummary}</p>`
-    : '<p style="font-size:14px;color:#aaa;margin:0;">No summary available.</p>'
+    ? `<p style="font-size:15px;color:#444;line-height:1.8;margin:0;">${daySummary}</p>`
+    : '<p style="font-size:15px;color:#aaa;margin:0;">No summary available.</p>'
 
   // ── Meeting recaps ─────────────────────────────────────────────
   const meetingsHtml = conversations.length
@@ -85,92 +91,139 @@ function buildEmail(conversations, tasks, personalItems, daySummary) {
         const bullets = (c.summary ?? '')
           .split('\n')
           .map(l => l.replace(/^[-*•]\s*/, '').replace(/\*\*/g, '').trim())
-          .filter(l => l && !l.startsWith('#') && !l.startsWith('##') && l.length > 10)
+          .filter(l => l && !l.startsWith('#') && l.length > 10)
           .slice(0, 6)
 
         const startTime = c.start_time
           ? new Date(c.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Denver' })
           : ''
 
-        return `
-          <div style="margin-bottom:20px;padding:16px;background:#fafafa;border-radius:8px;border-left:3px solid #4f46e5;">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-              <div style="font-weight:600;font-size:14px;color:#111;">${c.short_summary || 'Meeting'}</div>
-              ${startTime ? `<div style="font-size:12px;color:#aaa;">${startTime}</div>` : ''}
-            </div>
-            ${bulletPoints(bullets)}
-          </div>`
+        return `<div style="margin-bottom:16px;padding:14px 16px;background:#f8f9ff;border-radius:10px;border-left:4px solid #4f46e5;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+            <td style="font-weight:700;font-size:15px;color:#111;">${c.short_summary || 'Meeting'}</td>
+            ${startTime ? `<td style="text-align:right;font-size:12px;color:#aaa;white-space:nowrap;padding-left:8px;">${startTime}</td>` : ''}
+          </tr></table>
+          <div style="margin-top:10px;">${bulletList(bullets)}</div>
+        </div>`
       }).join('')
-    : '<p style="color:#aaa;font-size:14px;">No meetings captured today.</p>'
+    : '<p style="color:#aaa;font-size:14px;margin:0;">No meetings captured today.</p>'
 
   // ── Personal highlights ────────────────────────────────────────
   const personalHtml = personalItems.length
     ? personalItems.map(p =>
-        `<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid #f5f5f5;">
-          <span style="font-size:18px;line-height:1.3;">${p.emoji || '✦'}</span>
-          <span style="font-size:14px;color:#444;line-height:1.6;">${p.text}</span>
-        </div>`
+        `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:2px;">
+          <tr>
+            <td style="width:28px;vertical-align:top;font-size:18px;line-height:1.6;padding-top:2px;">${p.emoji || '✦'}</td>
+            <td style="font-size:15px;color:#444;line-height:1.7;padding-left:4px;">${p.text}</td>
+          </tr>
+        </table>
+        <div style="border-bottom:1px solid #f0f0f0;margin:6px 0;"></div>`
       ).join('')
-    : '<p style="color:#aaa;font-size:14px;">Nothing personal captured today.</p>'
+    : '<p style="color:#aaa;font-size:14px;margin:0;">Nothing personal captured today.</p>'
 
   // ── Tasks created today ────────────────────────────────────────
   const tasksHtml = tasks.length
-    ? tasks.map(t => `
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f5f5f5;">
-          <div style="display:flex;align-items:center;gap:10px;">
-            <span style="width:8px;height:8px;border-radius:50%;background:#4f46e5;flex-shrink:0;display:inline-block;"></span>
-            <span style="font-size:14px;color:#222;">${t.title}</span>
-          </div>
-          <span style="font-size:12px;color:#aaa;white-space:nowrap;margin-left:12px;">${t.priority}</span>
-        </div>`
-      ).join('')
-    : '<p style="color:#aaa;font-size:14px;">No new tasks added today.</p>'
+    ? tasks.map(t => {
+        const due = t.due
+          ? new Date(t.due + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+          : null
+        return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-bottom:1px solid #f0f0f0;">
+          <tr>
+            <td style="padding:10px 0;vertical-align:middle;width:12px;">
+              <div style="width:8px;height:8px;border-radius:50%;background:#4f46e5;"></div>
+            </td>
+            <td style="padding:10px 8px;font-size:15px;color:#222;line-height:1.4;">${t.title}</td>
+            <td style="padding:10px 0;text-align:right;white-space:nowrap;vertical-align:middle;">
+              ${due ? `<span style="font-size:11px;color:#888;margin-right:6px;">${due}</span>` : ''}
+              ${priorityBadge(t.priority)}
+            </td>
+          </tr>
+        </table>`
+      }).join('')
+    : '<p style="color:#aaa;font-size:14px;margin:0;">No new tasks added today.</p>'
 
   return `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-  <div style="max-width:620px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.08);">
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <style>
+    body { margin: 0; padding: 0; background: #f1f5f9; -webkit-text-size-adjust: 100%; }
+    table { border-collapse: collapse; }
+    img { border: 0; display: block; }
+    .wrapper { max-width: 620px; margin: 24px auto; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; }
+    .card { background: #ffffff; border-radius: 14px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    .header { background: #4f46e5; padding: 28px 32px; }
+    .body { padding: 28px 32px; }
+    .section { margin-bottom: 28px; }
+    .btn-wrap { text-align: center; padding-top: 20px; border-top: 1px solid #eee; }
+    .btn {
+      display: inline-block;
+      padding: 13px 32px;
+      background: #4f46e5;
+      color: #ffffff !important;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 700;
+      text-decoration: none;
+      letter-spacing: 0.2px;
+    }
 
-    <!-- Header -->
-    <div style="background:#4f46e5;padding:28px 32px;">
-      <div style="font-size:11px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;">Daily Recap</div>
-      <div style="font-size:24px;font-weight:700;color:#fff;">${today}</div>
-    </div>
+    @media only screen and (max-width: 600px) {
+      .wrapper { margin: 0 !important; }
+      .card { border-radius: 0 !important; }
+      .header { padding: 22px 18px !important; }
+      .header-eyebrow { font-size: 10px !important; }
+      .header-date { font-size: 20px !important; }
+      .body { padding: 20px 18px !important; }
+      .btn { display: block !important; text-align: center !important; padding: 15px 20px !important; }
+      .btn-wrap { padding-top: 16px !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="card">
 
-    <div style="padding:32px;">
-
-      <!-- 1. Day Recap -->
-      <div style="margin-bottom:32px;">
-        ${sectionHeader('📋 Day Recap')}
-        ${dayRecapHtml}
+      <!-- Header -->
+      <div class="header">
+        <div class="header-eyebrow" style="font-size:11px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;">Daily Recap</div>
+        <div class="header-date" style="font-size:24px;font-weight:700;color:#fff;line-height:1.2;">${today}</div>
       </div>
 
-      <!-- 2. Meeting Recaps -->
-      <div style="margin-bottom:32px;">
-        ${sectionHeader(`🗓 Meeting Recaps (${conversations.length})`)}
-        ${meetingsHtml}
-      </div>
+      <div class="body">
 
-      <!-- 3. Personal Highlights -->
-      <div style="margin-bottom:32px;">
-        ${sectionHeader('🌿 Personal Highlights', '#059669')}
-        ${personalHtml}
-      </div>
+        <!-- 1. Day Recap -->
+        <div class="section">
+          ${sectionLabel('📋', 'Day Recap')}
+          ${dayRecapHtml}
+        </div>
 
-      <!-- 4. Tasks Created Today -->
-      <div style="margin-bottom:32px;">
-        ${sectionHeader(`✅ Tasks Created Today (${tasks.length})`, '#d97706')}
-        ${tasksHtml}
-      </div>
+        <!-- 2. Meeting Recaps -->
+        <div class="section">
+          ${sectionLabel('🗓', `Meeting Recaps (${conversations.length})`)}
+          ${meetingsHtml}
+        </div>
 
-      <!-- Footer -->
-      <div style="text-align:center;padding-top:20px;border-top:1px solid #eee;">
-        <a href="${METTLE_URL}/tasks" style="display:inline-block;padding:11px 28px;background:#4f46e5;color:#fff;border-radius:6px;font-size:14px;font-weight:600;text-decoration:none;">
-          Open Task Board →
-        </a>
-      </div>
+        <!-- 3. Personal Highlights -->
+        <div class="section">
+          ${sectionLabel('🌿', 'Personal Highlights', '#059669')}
+          ${personalHtml}
+        </div>
 
+        <!-- 4. Tasks Created Today -->
+        <div class="section">
+          ${sectionLabel('✅', `Tasks Created Today (${tasks.length})`, '#d97706')}
+          ${tasksHtml}
+        </div>
+
+        <!-- CTA -->
+        <div class="btn-wrap">
+          <a href="${METTLE_URL}/tasks" class="btn">Open Task Board →</a>
+        </div>
+
+      </div>
     </div>
   </div>
 </body>

@@ -61,42 +61,58 @@ export async function POST(req: NextRequest) {
   const msg = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 1024,
-    system: `You are filtering a list of candidate tasks for a mortgage marketing professional named Colin.
+    system: `You are filtering candidate tasks for Colin, a mortgage marketing professional.
 
-Your job: return ONLY the indices of candidates that are:
-1. Work-related (not personal errands, shopping, family, health appointments, etc.)
-2. NOT already covered by an existing open task — even if worded differently. Be smart about semantic matches (e.g. "send URLs to Josh" and "email Josh with site URLs" are the same thing).
-3. Genuinely actionable (not vague observations)
+Return ONLY tasks that are:
+1. Work-related (not personal errands, shopping, family, health, etc.)
+2. NOT already covered by an existing open task — even if worded differently
+3. Genuinely actionable
 
-Return a JSON array of 1-based indices: [1, 3, 5]
-Return [] if nothing new and work-related is found.`,
+For each qualifying task, assess:
+- urgent: true if it sounds time-sensitive today/tomorrow, has a deadline, or is blocking someone
+- priority: "High" if urgent or critical, "Medium" for normal work, "Low" for minor/someday items
+
+Return ONLY a JSON array (no explanation):
+[{"index": 1, "urgent": false, "priority": "Medium"}, {"index": 3, "urgent": true, "priority": "High"}]
+Return [] if nothing qualifies.`,
     messages: [{
       role: 'user',
       content: `EXISTING OPEN TASKS (do not duplicate these):\n${existingList}\n\nCANDIDATE TASKS:\n${candidateList}`,
     }],
   })
 
-  let newIndices: number[] = []
+  interface AiTask { index: number; urgent: boolean; priority: string }
+  let aiTasks: AiTask[] = []
   try {
     const raw = (msg.content[0] as { type: 'text'; text: string }).text.trim()
-    const match = raw.match(/\[[\d,\s]*\]/)
-    if (match) newIndices = JSON.parse(match[0])
+    const match = raw.match(/\[[\s\S]*\]/)
+    if (match) aiTasks = JSON.parse(match[0])
   } catch {
-    newIndices = []
+    aiTasks = []
   }
 
-  const toInsert = todos.filter((_, i) => newIndices.includes(i + 1))
+  if (!aiTasks.length) return NextResponse.json({ ok: true, inserted: 0, skipped: todos.length })
+
+  const today = new Date()
+  const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1)
+  const nextWeek = new Date(today); nextWeek.setDate(today.getDate() + 7)
+  const isoDate = (d: Date) => d.toISOString().split('T')[0]
+
+  const toInsert = aiTasks
+    .map(ai => ({ candidate: todos[ai.index - 1], ai }))
+    .filter(({ candidate }) => candidate != null)
+
   if (!toInsert.length) return NextResponse.json({ ok: true, inserted: 0, skipped: todos.length })
 
-  const rows = toInsert.map(t => ({
+  const rows = toInsert.map(({ candidate: t, ai }) => ({
     title: t.text.replace(/^[\p{Emoji}\s]+/u, '').trim(),
     description: t.details ?? '',
     assignee_id: colin.id,
     section_id: generalSection?.id ?? null,
-    priority: 'Medium' as const,
+    priority: (ai.priority ?? 'Medium') as 'High' | 'Medium' | 'Low',
     channel: 'All' as const,
     status: 'To Do' as const,
-    due: null,
+    due: ai.urgent ? isoDate(tomorrow) : isoDate(nextWeek),
     meeting_id: null,
   }))
 
