@@ -4,11 +4,12 @@ import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type {
-  Advisor, AdvisorChannel, VisibilityAudit,
+  Advisor, AdvisorChannel, VisibilityAudit, AdvisorTask,
   AuditActionItem, AuditConflict, AuditSocialStatus, AuditQueryVisibility,
 } from '@/lib/types'
 import { ADVISOR_PLATFORMS, type AdvisorChannelPlatform } from '@/lib/types'
 import { Icon } from '@/components/ui/Icon'
+import { generateAuditHTML } from '@/lib/audit-pdf'
 
 interface AdvisorWithRelations extends Advisor {
   advisor_channels: AdvisorChannel[]
@@ -40,6 +41,10 @@ function initials(name: string) {
 
 function platformMeta(platform: string) {
   return ADVISOR_PLATFORMS.find(p => p.value === platform) ?? { label: platform, icon: '🔗', value: platform }
+}
+
+function makeTaskId() {
+  return Math.random().toString(36).slice(2, 10)
 }
 
 // ── Sub-components (defined at module level) ──────────────────────────
@@ -133,7 +138,7 @@ function SectionCard({
 
 // ── Main component ────────────────────────────────────────────────────
 
-type Tab = 'profile' | 'channels' | 'audit'
+type Tab = 'profile' | 'channels' | 'tasks' | 'audit'
 
 export function AdvisorProfile({ advisor: initial }: AdvisorProfileProps) {
   const router = useRouter()
@@ -143,21 +148,33 @@ export function AdvisorProfile({ advisor: initial }: AdvisorProfileProps) {
   const [saving, setSaving] = useState(false)
   const [auditing, setAuditing] = useState(false)
 
+  // Tasks state
+  const [advisorTasks, setAdvisorTasks] = useState<AdvisorTask[]>(
+    (initial.metadata?.advisor_tasks as AdvisorTask[] | undefined) ?? []
+  )
+  const [taskSaving, setTaskSaving] = useState(false)
+  const [addingTask, setAddingTask] = useState(false)
+  const [newTaskTitle, setNewTaskTitle] = useState('')
+
+  // NAP form state
+  const [napSubmitted, setNapSubmitted] = useState(!!initial.metadata?.nap_form_submitted_at)
+  const [napTs, setNapTs] = useState<string | undefined>(initial.metadata?.nap_form_submitted_at)
+
   const [form, setForm] = useState({
     name:           initial.name,
     title:          initial.title ?? '',
     email:          initial.email ?? '',
     phone:          initial.phone ?? '',
     nmls_number:    initial.nmls_number ?? '',
-    business_name:  initial.metadata?.business_name ?? '',
-    team_name:      initial.metadata?.team_name ?? '',
+    business_name:  (initial.metadata?.business_name as string | undefined) ?? '',
+    team_name:      (initial.metadata?.team_name as string | undefined) ?? '',
     street_address: initial.street_address ?? '',
     city:           initial.city ?? '',
     state:          initial.state ?? '',
     zip:            initial.zip ?? '',
     service_area:   initial.service_area ?? '',
     bio:            initial.bio ?? '',
-    competitors:    initial.metadata?.competitors ?? '',
+    competitors:    (initial.metadata?.competitors as string | undefined) ?? '',
   })
 
   const setF = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
@@ -174,6 +191,7 @@ export function AdvisorProfile({ advisor: initial }: AdvisorProfileProps) {
 
   const latestAudit = advisor.visibility_audits[0] ?? null
   const color = avatarColor(advisor.name)
+  const pendingTasks = advisorTasks.filter(t => !t.completed).length
 
   // ── Section save ──────────────────────────────────────────────────
 
@@ -234,15 +252,15 @@ export function AdvisorProfile({ advisor: initial }: AdvisorProfileProps) {
       email:          advisor.email ?? '',
       phone:          advisor.phone ?? '',
       nmls_number:    advisor.nmls_number ?? '',
-      business_name:  advisor.metadata?.business_name ?? '',
-      team_name:      advisor.metadata?.team_name ?? '',
+      business_name:  (advisor.metadata?.business_name as string | undefined) ?? '',
+      team_name:      (advisor.metadata?.team_name as string | undefined) ?? '',
       street_address: advisor.street_address ?? '',
       city:           advisor.city ?? '',
       state:          advisor.state ?? '',
       zip:            advisor.zip ?? '',
       service_area:   advisor.service_area ?? '',
       bio:            advisor.bio ?? '',
-      competitors:    advisor.metadata?.competitors ?? '',
+      competitors:    (advisor.metadata?.competitors as string | undefined) ?? '',
     })
     setEditSection(null)
   }, [advisor])
@@ -270,6 +288,127 @@ export function AdvisorProfile({ advisor: initial }: AdvisorProfileProps) {
     setChannelDraft(prev => [...prev, { ...newChannel }])
     setNewChannel({ platform: 'google_business', url: '', label: '' })
   }, [newChannel])
+
+  // ── Tasks ─────────────────────────────────────────────────────────
+
+  const persistTasks = useCallback(async (tasks: AdvisorTask[]) => {
+    setTaskSaving(true)
+    try {
+      const res = await fetch(`/api/advisors/${advisor.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          metadata: { ...(advisor.metadata ?? {}), advisor_tasks: tasks },
+        }),
+      })
+      const updated = await res.json()
+      setAdvisor(prev => ({ ...prev, ...updated }))
+    } finally {
+      setTaskSaving(false)
+    }
+  }, [advisor.id, advisor.metadata])
+
+  const toggleTask = useCallback(async (idx: number) => {
+    const updated = advisorTasks.map((t, i) => i !== idx ? t : {
+      ...t,
+      completed: !t.completed,
+      completed_at: !t.completed ? new Date().toISOString() : undefined,
+    })
+    setAdvisorTasks(updated)
+    await persistTasks(updated)
+  }, [advisorTasks, persistTasks])
+
+  const removeTask = useCallback(async (idx: number) => {
+    const updated = advisorTasks.filter((_, i) => i !== idx)
+    setAdvisorTasks(updated)
+    await persistTasks(updated)
+  }, [advisorTasks, persistTasks])
+
+  const addTask = useCallback(async () => {
+    if (!newTaskTitle.trim()) return
+    const task: AdvisorTask = {
+      id: makeTaskId(),
+      title: newTaskTitle.trim(),
+      completed: false,
+      source: 'manual',
+      created_at: new Date().toISOString(),
+    }
+    const updated = [...advisorTasks, task]
+    setAdvisorTasks(updated)
+    setNewTaskTitle('')
+    setAddingTask(false)
+    await persistTasks(updated)
+  }, [newTaskTitle, advisorTasks, persistTasks])
+
+  const pushAuditItemToTask = useCallback(async (item: AuditActionItem) => {
+    const already = advisorTasks.some(t => t.title === item.action)
+    if (already) return
+    const task: AdvisorTask = {
+      id: makeTaskId(),
+      title: item.action,
+      completed: false,
+      impact: item.impact,
+      platform: item.platform,
+      url: item.url,
+      source: 'audit',
+      created_at: new Date().toISOString(),
+    }
+    const updated = [...advisorTasks, task]
+    setAdvisorTasks(updated)
+    await persistTasks(updated)
+  }, [advisorTasks, persistTasks])
+
+  const pushAllAuditItems = useCallback(async () => {
+    if (!latestAudit?.action_items) return
+    const items = latestAudit.action_items as AuditActionItem[]
+    const existingTitles = new Set(advisorTasks.map(t => t.title))
+    const newTasks: AdvisorTask[] = items
+      .filter(item => !existingTitles.has(item.action))
+      .map(item => ({
+        id: makeTaskId(),
+        title: item.action,
+        completed: false,
+        impact: item.impact,
+        platform: item.platform,
+        url: item.url,
+        source: 'audit' as const,
+        created_at: new Date().toISOString(),
+      }))
+    if (!newTasks.length) return
+    const updated = [...advisorTasks, ...newTasks]
+    setAdvisorTasks(updated)
+    await persistTasks(updated)
+    setTab('tasks')
+  }, [latestAudit, advisorTasks, persistTasks])
+
+  // ── NAP form toggle ───────────────────────────────────────────────
+
+  const toggleNapForm = useCallback(async () => {
+    const newVal = !napSubmitted
+    const ts = newVal ? new Date().toISOString() : undefined
+    setNapSubmitted(newVal)
+    setNapTs(ts)
+    await fetch(`/api/advisors/${advisor.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        metadata: { ...(advisor.metadata ?? {}), nap_form_submitted_at: ts },
+      }),
+    })
+  }, [advisor.id, advisor.metadata, napSubmitted])
+
+  // ── PDF export ────────────────────────────────────────────────────
+
+  const exportPDF = useCallback(() => {
+    if (!latestAudit) return
+    const html = generateAuditHTML(advisor, latestAudit)
+    const win = window.open('', '_blank')
+    if (!win) return
+    win.document.write(html)
+    win.document.close()
+    win.focus()
+    setTimeout(() => win.print(), 600)
+  }, [advisor, latestAudit])
 
   // ── Run audit ─────────────────────────────────────────────────────
 
@@ -326,6 +465,16 @@ export function AdvisorProfile({ advisor: initial }: AdvisorProfileProps) {
                 {advisor.advisor_channels.length} channel{advisor.advisor_channels.length !== 1 ? 's' : ''}
               </span>
             )}
+            {/* NAP form chip */}
+            <button
+              className={`profile-hero__nap-chip${napSubmitted ? ' profile-hero__nap-chip--done' : ''}`}
+              onClick={toggleNapForm}
+              title={napSubmitted
+                ? `NAP form submitted ${napTs ? new Date(napTs).toLocaleDateString() : ''}. Click to clear.`
+                : 'Mark NAP form as submitted'}
+            >
+              {napSubmitted ? '✓' : '○'} NAP Form
+            </button>
           </div>
         </div>
         <div className="profile-hero__actions">
@@ -343,15 +492,19 @@ export function AdvisorProfile({ advisor: initial }: AdvisorProfileProps) {
 
       {/* Tabs */}
       <div className="profile-tabs">
-        {(['profile', 'channels', 'audit'] as Tab[]).map(t => (
+        {(['profile', 'channels', 'tasks', 'audit'] as Tab[]).map(t => (
           <button
             key={t}
             className={`profile-tab${tab === t ? ' profile-tab--active' : ''}`}
             onClick={() => setTab(t)}
           >
-            {t === 'profile' ? 'Profile'
+            {t === 'profile'   ? 'Profile'
               : t === 'channels' ? `Channels (${advisor.advisor_channels.length})`
+              : t === 'tasks'    ? 'Tasks'
               : 'Audit Results'}
+            {t === 'tasks' && pendingTasks > 0 && (
+              <span className="profile-tab-count">{pendingTasks}</span>
+            )}
             {t === 'audit' && latestAudit?.score != null && (
               <span className={`profile-tab-score ${latestAudit.score >= 70 ? 'green' : latestAudit.score >= 45 ? 'yellow' : 'red'}`}>
                 {latestAudit.score}
@@ -398,8 +551,8 @@ export function AdvisorProfile({ advisor: initial }: AdvisorProfileProps) {
               <FieldItem label="Full Name"         value={advisor.name} />
               <FieldItem label="Title"              value={advisor.title} />
               <FieldItem label="NMLS#"              value={advisor.nmls_number} mono />
-              <FieldItem label="Business Name"      value={advisor.metadata?.business_name} />
-              <FieldItem label="Team / Brand Name"  value={advisor.metadata?.team_name} />
+              <FieldItem label="Business Name"      value={advisor.metadata?.business_name as string | undefined} />
+              <FieldItem label="Team / Brand Name"  value={advisor.metadata?.team_name as string | undefined} />
             </div>
           </SectionCard>
 
@@ -495,7 +648,7 @@ export function AdvisorProfile({ advisor: initial }: AdvisorProfileProps) {
             <div className="field-grid field-grid--1col">
               <FieldItem label="Service Area / Top Markets"    value={advisor.service_area} />
               <FieldItem label="Who You Serve / Target Market" value={advisor.bio} />
-              <FieldItem label="Top Competitors"               value={advisor.metadata?.competitors} />
+              <FieldItem label="Top Competitors"               value={advisor.metadata?.competitors as string | undefined} />
             </div>
           </SectionCard>
 
@@ -617,6 +770,124 @@ export function AdvisorProfile({ advisor: initial }: AdvisorProfileProps) {
         </div>
       )}
 
+      {/* ── Tasks Tab ──────────────────────────────────────────────── */}
+      {tab === 'tasks' && (
+        <div className="profile-content">
+          <div className="prof-section">
+            <div className="prof-section__head">
+              <div className="prof-section__title">
+                Action Tasks
+                {taskSaving && <span className="task-saving">saving...</span>}
+              </div>
+              <button className="btn btn--ghost btn--sm" onClick={() => setAddingTask(true)}>
+                <Icon name="plus" size={12} /> Add Task
+              </button>
+            </div>
+            <div className="prof-section__body">
+
+              {advisorTasks.length === 0 && !addingTask ? (
+                <div className="tasks-empty">
+                  <Icon name="tasks" size={28} />
+                  <p>No tasks yet.</p>
+                  <p className="tasks-empty__hint">Run an AI audit and push action items here, or add tasks manually.</p>
+                  {latestAudit?.action_items && (latestAudit.action_items as AuditActionItem[]).length > 0 && (
+                    <button className="btn btn--primary" onClick={pushAllAuditItems}>
+                      <Icon name="sparkle" size={14} /> Push Audit Items to Tasks
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="advisor-tasks">
+
+                  {/* Pending tasks first */}
+                  {advisorTasks.filter(t => !t.completed).map((task, i) => {
+                    const realIdx = advisorTasks.indexOf(task)
+                    return (
+                      <div key={task.id} className="advisor-task">
+                        <button className="advisor-task__check" onClick={() => toggleTask(realIdx)}>
+                          <span className="advisor-task__check-inner" />
+                        </button>
+                        <div className="advisor-task__body">
+                          <div className="advisor-task__title">{task.title}</div>
+                          <div className="advisor-task__meta">
+                            {task.platform && <span className="advisor-task__platform">{task.platform}</span>}
+                            {task.source === 'audit' && <span className="advisor-task__source">from audit</span>}
+                          </div>
+                        </div>
+                        {task.impact && <ImpactBadge impact={task.impact} />}
+                        {task.url && (
+                          <a href={task.url} target="_blank" rel="noopener noreferrer" className="btn btn--ghost btn--icon" title="Open link">
+                            <Icon name="external-link" size={13} />
+                          </a>
+                        )}
+                        <button className="btn btn--ghost btn--icon" onClick={() => removeTask(realIdx)}>
+                          <Icon name="x" size={13} />
+                        </button>
+                      </div>
+                    )
+                  })}
+
+                  {/* Add task inline form */}
+                  {addingTask && (
+                    <div className="advisor-task advisor-task--new">
+                      <div className="advisor-task__check advisor-task__check--placeholder" />
+                      <input
+                        autoFocus
+                        className="advisor-task__input"
+                        placeholder="Task title..."
+                        value={newTaskTitle}
+                        onChange={e => setNewTaskTitle(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') addTask()
+                          if (e.key === 'Escape') { setAddingTask(false); setNewTaskTitle('') }
+                        }}
+                      />
+                      <button className="btn btn--primary btn--sm" onClick={addTask}>Add</button>
+                      <button className="btn btn--ghost btn--sm" onClick={() => { setAddingTask(false); setNewTaskTitle('') }}>
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Completed tasks */}
+                  {advisorTasks.filter(t => t.completed).length > 0 && (
+                    <div className="tasks-done-section">
+                      <div className="tasks-done-label">
+                        Completed ({advisorTasks.filter(t => t.completed).length})
+                      </div>
+                      {advisorTasks.filter(t => t.completed).map(task => {
+                        const realIdx = advisorTasks.indexOf(task)
+                        return (
+                          <div key={task.id} className="advisor-task advisor-task--done">
+                            <button className="advisor-task__check advisor-task__check--checked" onClick={() => toggleTask(realIdx)}>
+                              <span className="advisor-task__check-inner" />
+                            </button>
+                            <div className="advisor-task__body">
+                              <div className="advisor-task__title">{task.title}</div>
+                              {task.completed_at && (
+                                <div className="advisor-task__meta">
+                                  <span className="advisor-task__source">
+                                    done {new Date(task.completed_at).toLocaleDateString()}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                            <button className="btn btn--ghost btn--icon" onClick={() => removeTask(realIdx)}>
+                              <Icon name="x" size={13} />
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Audit Tab ──────────────────────────────────────────────── */}
       {tab === 'audit' && (
         <div className="profile-content">
@@ -649,6 +920,16 @@ export function AdvisorProfile({ advisor: initial }: AdvisorProfileProps) {
                   </div>
                   {latestAudit.raw_result?.summary && (
                     <p className="audit-summary__text">{latestAudit.raw_result.summary}</p>
+                  )}
+                </div>
+                <div className="audit-score-actions">
+                  <button className="btn btn--ghost btn--sm" onClick={exportPDF}>
+                    <Icon name="download" size={13} /> Export PDF
+                  </button>
+                  {latestAudit.action_items && (latestAudit.action_items as AuditActionItem[]).length > 0 && (
+                    <button className="btn btn--ghost btn--sm" onClick={pushAllAuditItems}>
+                      <Icon name="tasks" size={13} /> Push All to Tasks
+                    </button>
                   )}
                 </div>
               </div>
@@ -688,23 +969,34 @@ export function AdvisorProfile({ advisor: initial }: AdvisorProfileProps) {
                 <div className="audit-section">
                   <h3>Action Items</h3>
                   <div className="action-list">
-                    {(latestAudit.action_items as AuditActionItem[]).map((item, i) => (
-                      <div key={i} className="action-item">
-                        <span className="action-item__rank">{item.rank}</span>
-                        <div className="action-item__body">
-                          <div className="action-item__top">
-                            <span className="action-item__platform">{item.platform}</span>
-                            <ImpactBadge impact={item.impact} />
+                    {(latestAudit.action_items as AuditActionItem[]).map((item, i) => {
+                      const alreadyTask = advisorTasks.some(t => t.title === item.action)
+                      return (
+                        <div key={i} className="action-item">
+                          <span className="action-item__rank">{item.rank}</span>
+                          <div className="action-item__body">
+                            <div className="action-item__top">
+                              <span className="action-item__platform">{item.platform}</span>
+                              <ImpactBadge impact={item.impact} />
+                            </div>
+                            <div className="action-item__action">{item.action}</div>
+                            {item.url && (
+                              <a href={item.url} target="_blank" rel="noopener noreferrer" className="action-item__url">
+                                {item.url}
+                              </a>
+                            )}
                           </div>
-                          <div className="action-item__action">{item.action}</div>
-                          {item.url && (
-                            <a href={item.url} target="_blank" rel="noopener noreferrer" className="action-item__url">
-                              {item.url}
-                            </a>
-                          )}
+                          <button
+                            className={`btn btn--ghost btn--sm action-item__push${alreadyTask ? ' action-item__push--done' : ''}`}
+                            onClick={() => !alreadyTask && pushAuditItemToTask(item)}
+                            title={alreadyTask ? 'Already in Tasks' : 'Add to Tasks'}
+                            disabled={alreadyTask}
+                          >
+                            {alreadyTask ? '✓ Added' : '+ Task'}
+                          </button>
                         </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               )}

@@ -1784,7 +1784,7 @@ button { font-family: inherit; }
 .audit-score-card {
   display: flex; gap: 28px; align-items: center;
   background: var(--bg-card); border: 1.5px solid var(--line-soft);
-  border-radius: 14px; padding: 28px;
+  border-radius: 14px; padding: 28px; flex-wrap: wrap;
 }
 .audit-summary { flex: 1; }
 .audit-summary__date { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
@@ -1907,3 +1907,135 @@ button { font-family: inherit; }
 .btn--sm { padding: 5px 10px; font-size: 12px; }
 .btn--icon { padding: 6px; aspect-ratio: 1; }
 .btn--danger:hover { color: #dc2626; border-color: #dc2626; }
+
+/* ── NAP Form chip ────────────────────────────────────────────────── */
+.profile-hero__nap-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;
+  cursor: pointer; border: 1px solid var(--line);
+  background: transparent; color: var(--muted);
+  transition: all 0.15s;
+}
+.profile-hero__nap-chip:hover {
+  border-color: var(--accent-line); color: var(--fg-2);
+}
+.profile-hero__nap-chip--done {
+  background: rgba(34,197,94,0.12);
+  border-color: rgba(34,197,94,0.35);
+  color: #4ade80;
+}
+.profile-hero__nap-chip--done:hover {
+  background: rgba(239,68,68,0.10);
+  border-color: rgba(239,68,68,0.35);
+  color: #f87171;
+}
+
+/* ── Profile tab count badge ──────────────────────────────────────── */
+.profile-tab-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--accent); color: #061320;
+  font-size: 10px; font-weight: 700; border-radius: 9px;
+  min-width: 18px; height: 18px; padding: 0 5px;
+  margin-left: 6px; line-height: 1;
+}
+
+/* ── Audit score actions row ──────────────────────────────────────── */
+/* (main .audit-score-card defined earlier; just extend here) */
+.audit-score-actions {
+  display: flex; flex-direction: column; gap: 8px; margin-left: auto;
+}
+.audit-score-actions .btn { white-space: nowrap; }
+
+/* ── Action item push button ──────────────────────────────────────── */
+.action-item { display: flex; align-items: flex-start; gap: 12px; }
+.action-item__push {
+  margin-left: auto; flex-shrink: 0; align-self: flex-start;
+  font-size: 11px; padding: 4px 10px;
+}
+.action-item__push--done {
+  opacity: 0.5; cursor: default;
+}
+
+/* ── Tasks tab ────────────────────────────────────────────────────── */
+.tasks-empty {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 10px; padding: 40px 20px; color: var(--muted); text-align: center;
+}
+.tasks-empty p { margin: 0; font-size: 14px; }
+.tasks-empty__hint { font-size: 12px; color: var(--muted); max-width: 300px; }
+.tasks-empty .btn { margin-top: 8px; }
+
+.advisor-tasks { display: flex; flex-direction: column; gap: 2px; }
+
+.advisor-task {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: 7px;
+  transition: background 0.1s;
+}
+.advisor-task:hover { background: var(--bg-hover); }
+
+.advisor-task__check {
+  width: 20px; height: 20px; border-radius: 50%;
+  border: 2px solid var(--line-strong);
+  background: transparent; cursor: pointer; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s; padding: 0;
+}
+.advisor-task__check:hover {
+  border-color: var(--accent);
+}
+.advisor-task__check--checked {
+  background: var(--accent); border-color: var(--accent);
+}
+.advisor-task__check-inner {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: transparent;
+}
+.advisor-task__check--checked .advisor-task__check-inner {
+  background: #061320;
+  border-radius: 0;
+  width: 6px; height: 5px;
+  /* checkmark via clip */
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+}
+.advisor-task__check--placeholder {
+  border: 2px solid transparent; cursor: default; pointer-events: none;
+}
+
+.advisor-task__body { flex: 1; min-width: 0; }
+.advisor-task__title {
+  font-size: 13px; color: var(--fg); line-height: 1.4;
+}
+.advisor-task__meta {
+  display: flex; gap: 8px; margin-top: 2px;
+}
+.advisor-task__platform {
+  font-size: 11px; color: var(--muted); background: var(--bg-3);
+  padding: 1px 6px; border-radius: 3px;
+}
+.advisor-task__source {
+  font-size: 11px; color: var(--muted);
+}
+.advisor-task__input {
+  flex: 1; background: var(--bg-card-2); border: 1px solid var(--line);
+  color: var(--fg); border-radius: 6px; padding: 6px 10px; font-size: 13px;
+  min-width: 0;
+}
+.advisor-task__input:focus { outline: none; border-color: var(--accent-line); }
+
+.advisor-task--done { opacity: 0.55; }
+.advisor-task--done .advisor-task__title { text-decoration: line-through; }
+.advisor-task--new { background: var(--bg-hover); border-radius: 7px; }
+
+.tasks-done-section { margin-top: 16px; }
+.tasks-done-label {
+  font-size: 11px; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  padding: 0 12px 8px; border-bottom: 1px solid var(--line-soft); margin-bottom: 4px;
+}
+
+.task-saving {
+  font-size: 11px; color: var(--muted); font-weight: 400;
+  margin-left: 8px; animation: pulse 1.5s ease infinite;
+}
+@keyframes pulse { 0%,100%{opacity:.4} 50%{opacity:1} }

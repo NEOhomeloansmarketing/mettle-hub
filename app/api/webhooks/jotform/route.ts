@@ -138,6 +138,19 @@ async function processSubmission(data: Record<string, unknown>) {
   let advisorId: string | null = null
   let created = false
 
+  // Debug: if no recognizable fields, log what was received
+  if (!fullName && !nmls && !email) {
+    const receivedKeys = Object.keys(data).join(', ')
+    console.error('[jotform] No usable fields found. Received keys:', receivedKeys)
+    try {
+      await db.from('activity').insert({
+        kind: 'system',
+        label: `[Jotform DEBUG] Webhook hit but no fields matched. Received keys: ${receivedKeys.slice(0, 200)}`,
+      })
+    } catch {}
+    return NextResponse.json({ error: 'No identifiable fields found', receivedKeys }, { status: 400 })
+  }
+
   // 1. NMLS (most unique)
   if (nmls) {
     const { data: found } = await db.from('advisors').select('id').eq('nmls_number', nmls).maybeSingle()
@@ -251,11 +264,27 @@ async function processSubmission(data: Record<string, unknown>) {
     }
   }
 
+  // Mark NAP form as submitted
+  const napTs = new Date().toISOString()
+  const { data: currentAdvisor } = await db.from('advisors').select('metadata').eq('id', advisorId).single()
+  await db.from('advisors').update({
+    metadata: { ...(currentAdvisor?.metadata ?? {}), nap_form_submitted_at: napTs },
+  }).eq('id', advisorId)
+
+  // Log to activity so the team can see webhook was received
+  try {
+    await db.from('activity').insert({
+      kind: 'system',
+      label: `NAP form submitted — ${fullName ?? businessName ?? email ?? 'unknown'} (${created ? 'new advisor created' : 'existing advisor updated'})`,
+    })
+  } catch {}
+
   return NextResponse.json({
     ok: true,
     advisorId,
     created,
     fieldsUpdated: created ? 'all' : 'merged',
     channelsUpdated: channels.length,
+    napFormRecorded: true,
   })
 }

@@ -252,11 +252,24 @@ export const ADVISOR_PLATFORMS: { value: AdvisorChannelPlatform; label: string; 
   { value: 'other',           label: 'Other',                   icon: '🔗' },
 ]
 
+export interface AdvisorTask {
+  id: string
+  title: string
+  completed: boolean
+  completed_at?: string
+  impact?: 'High' | 'Medium' | 'Low'
+  platform?: string
+  url?: string
+  source: 'audit' | 'manual'
+  created_at: string
+}
+
 export interface AdvisorMetadata {
   team_name?: string
   business_name?: string
   competitors?: string
-  [key: string]: string | undefined
+  nap_form_submitted_at?: string
+  advisor_tasks?: AdvisorTask[]
 }
 
 export interface Advisor {
