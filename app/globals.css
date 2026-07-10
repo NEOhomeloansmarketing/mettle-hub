@@ -1908,6 +1908,15 @@ button { font-family: inherit; }
 .btn--icon { padding: 6px; aspect-ratio: 1; }
 .btn--danger:hover { color: #dc2626; border-color: #dc2626; }
 
+/* ── Audit error banner ───────────────────────────────────────────── */
+.audit-error-banner {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(239,68,68,0.10); border: 1px solid rgba(239,68,68,0.30);
+  color: #f87171; border-radius: 8px; padding: 10px 14px; margin-bottom: 12px;
+  font-size: 13px;
+}
+.audit-error-banner span { flex: 1; }
+
 /* ── NAP Form chip ────────────────────────────────────────────────── */
 .profile-hero__nap-chip {
   display: inline-flex; align-items: center; gap: 5px;

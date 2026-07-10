@@ -147,6 +147,7 @@ export function AdvisorProfile({ advisor: initial }: AdvisorProfileProps) {
   const [editSection, setEditSection] = useState<EditSection>(null)
   const [saving, setSaving] = useState(false)
   const [auditing, setAuditing] = useState(false)
+  const [auditError, setAuditError] = useState<string | null>(null)
 
   // Tasks state
   const [advisorTasks, setAdvisorTasks] = useState<AdvisorTask[]>(
@@ -414,12 +415,18 @@ export function AdvisorProfile({ advisor: initial }: AdvisorProfileProps) {
 
   const runAudit = useCallback(async () => {
     setAuditing(true)
+    setAuditError(null)
     try {
       const res = await fetch(`/api/advisors/${advisor.id}/audit`, { method: 'POST' })
-      if (!res.ok) throw new Error(await res.text())
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: res.statusText }))
+        throw new Error(body?.error ?? `Server error ${res.status}`)
+      }
       const newAudit = await res.json()
       setAdvisor(prev => ({ ...prev, visibility_audits: [newAudit, ...prev.visibility_audits] }))
       setTab('audit')
+    } catch (err) {
+      setAuditError(err instanceof Error ? err.message : 'Audit failed — please try again')
     } finally {
       setAuditing(false)
     }
@@ -489,6 +496,17 @@ export function AdvisorProfile({ advisor: initial }: AdvisorProfileProps) {
           </button>
         </div>
       </div>
+
+      {/* Audit error banner */}
+      {auditError && (
+        <div className="audit-error-banner">
+          <Icon name="alert" size={14} />
+          <span>{auditError}</span>
+          <button className="btn btn--ghost btn--icon" onClick={() => setAuditError(null)}>
+            <Icon name="x" size={13} />
+          </button>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="profile-tabs">

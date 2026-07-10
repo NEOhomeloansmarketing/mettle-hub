@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { createClient as serviceClient } from '@supabase/supabase-js'
 import { runVisibilityAudit } from '@/lib/visibility-audit'
 import type { Advisor, AdvisorChannel } from '@/lib/types'
+
+// Edge runtime gives us 30s instead of the 10s serverless limit.
+// Both GET and POST use the service-role client (no cookies needed here).
+export const runtime = 'edge'
+export const maxDuration = 60
 
 function svc() {
   return serviceClient(
@@ -16,8 +20,8 @@ interface Ctx { params: Promise<{ id: string }> }
 // GET /api/advisors/[id]/audit — list audit history
 export async function GET(_req: NextRequest, { params }: Ctx) {
   const { id } = await params
-  const supabase = await createClient()
-  const { data, error } = await supabase
+  const db = svc()
+  const { data, error } = await db
     .from('visibility_audits')
     .select('*')
     .eq('advisor_id', id)
@@ -53,7 +57,6 @@ export async function POST(_req: NextRequest, { params }: Ctx) {
     return NextResponse.json({ error: 'Failed to create audit record' }, { status: 500 })
   }
 
-  // Run the AI audit (this is async — we'll stream-then-update)
   try {
     const result = await runVisibilityAudit(
       advisor as Advisor,
@@ -92,6 +95,7 @@ export async function POST(_req: NextRequest, { params }: Ctx) {
       .eq('id', auditRow.id)
 
     const msg = err instanceof Error ? err.message : 'Audit failed'
+    console.error('[audit] Failed:', msg)
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
