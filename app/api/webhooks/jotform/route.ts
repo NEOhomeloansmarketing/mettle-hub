@@ -11,16 +11,16 @@ function svc() {
 // ── Field parsers ─────────────────────────────────────────────────────────────
 
 function str(val: unknown): string | undefined {
-  if (!val || typeof val !== 'string') return undefined
+  if (!val) return undefined
+  if (typeof val !== 'string') return undefined
   const s = val.trim()
   return s || undefined
 }
 
-// Jotform Address widget sends an object: { addr_line1, city, state, postal, country }
+// Jotform Address widget: { addr_line1, city, state, postal } OR formatted string
 function parseAddress(val: unknown) {
   if (!val) return {}
   if (typeof val === 'string') {
-    // Sometimes Jotform sends the address as a pre-formatted string
     return { street: val.split('\n')[0]?.trim() || undefined }
   }
   const v = val as Record<string, string>
@@ -32,7 +32,7 @@ function parseAddress(val: unknown) {
   }
 }
 
-// Jotform Phone widget sends { full, area, phone } OR just a string
+// Jotform Phone widget: { full, area, phone } OR string
 function parsePhone(val: unknown): string | undefined {
   if (!val) return undefined
   if (typeof val === 'string') return val.trim() || undefined
@@ -40,7 +40,7 @@ function parsePhone(val: unknown): string | undefined {
   return str(v.full) ?? str(v.phone)
 }
 
-// Jotform Full Name widget sends { first, last } OR just a string
+// Jotform Name widget: { first, last } OR string
 function parseName(val: unknown): string | undefined {
   if (!val) return undefined
   if (typeof val === 'string') return val.trim() || undefined
@@ -48,79 +48,61 @@ function parseName(val: unknown): string | undefined {
   return [str(v.first), str(v.last)].filter(Boolean).join(' ') || undefined
 }
 
-// Pull multiple URLs out of a multi-line or comma-separated text field
 function extractUrls(val: unknown): string[] {
   if (!val || typeof val !== 'string') return []
   return val
-    .split(/[\n,]+/)
+    .split(/[\n,\s]+/)
     .map(s => s.trim())
-    .filter(s => s.startsWith('http') || s.startsWith('www.') || s.includes('.'))
+    .filter(s => s.includes('.') && !s.includes(' ') && s.length > 5)
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  // Optional: protect with ?secret=xxx in your Jotform webhook URL
   const secret = req.nextUrl.searchParams.get('secret')
   if (process.env.JOTFORM_WEBHOOK_SECRET && secret !== process.env.JOTFORM_WEBHOOK_SECRET) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Jotform posts URL-encoded body with a `rawRequest` key containing JSON
   const text = await req.text()
   const params = new URLSearchParams(text)
   const rawRequest = params.get('rawRequest')
 
-  if (!rawRequest) {
-    // Some Jotform setups send JSON directly
-    let direct: Record<string, unknown>
-    try { direct = JSON.parse(text) } catch { direct = {} }
-    if (!Object.keys(direct).length) {
-      return NextResponse.json({ error: 'No rawRequest in body' }, { status: 400 })
-    }
-    return processSubmission(direct)
-  }
-
   let data: Record<string, unknown>
-  try {
-    data = JSON.parse(rawRequest)
-  } catch {
-    return NextResponse.json({ error: 'Could not parse rawRequest JSON' }, { status: 400 })
+  if (rawRequest) {
+    try { data = JSON.parse(rawRequest) } catch {
+      return NextResponse.json({ error: 'Invalid rawRequest JSON' }, { status: 400 })
+    }
+  } else {
+    try { data = JSON.parse(text) } catch {
+      return NextResponse.json({ error: 'No parseable body' }, { status: 400 })
+    }
   }
 
   return processSubmission(data)
 }
 
 async function processSubmission(data: Record<string, unknown>) {
-  // ── Extract NAP fields ────────────────────────────────────────────
+  // ── Extract fields using the actual Jotform variable names ────────
 
-  const email       = str(data.businessEmail)
-  const phone       = parsePhone(data.q4_phone2)
-  const address     = parseAddress(data.q3_address1)
-  const title       = str(data.title)
-  const serviceArea = str(data.top5)
-  const bio         = str(data.whoYou)
-  const competitors = str(data.top3)
-  const teamName    = str(data.teamOr)
-  const businessName = str(data.businessName)
-  const microSites  = str(data.doYou)
-  const anyOther    = str(data.anyOther)
+  const fullName    = parseName(data.name)          // {name}
+  const nmls        = str(data.nmls)                // {nmls}
+  const businessName = str(data.businessName)       // {businessName}
+  const teamName    = str(data.teamOr)              // {teamOr}
+  const address     = parseAddress(data.q3_address1)// {q3_address1}
+  const phone       = parsePhone(data.q4_phone2)    // {q4_phone2}
+  const email       = str(data.businessEmail)       // {businessEmail}
+  const title       = str(data.title)               // {title}
+  const serviceArea = str(data.top5)                // {top5}
+  const bio         = str(data.whoYou)              // {whoYou}
+  const competitors = str(data.top3)                // {top3}
+  const microSites  = str(data.doYou)               // {doYou}
+  const anyOther    = str(data.anyOther)             // {anyOther}
 
-  // NMLS — the user said they added this field; try likely variable names
-  const nmls =
-    str(data.nmlsNumber) ?? str(data.nmls) ?? str(data.nmlsId) ??
-    str(data.nmlsNum)    ?? str(data.licenseNumber) ?? str(data.license)
+  // ── Build channels ────────────────────────────────────────────────
 
-  // Full name — Jotform Name widget sends { first, last }; also try plain text fields
-  const fullName =
-    parseName(data.fullName) ?? parseName(data.advisorName) ??
-    parseName(data.yourName) ?? parseName(data.name) ??
-    str(data.fullName)
-
-  // ── Map social/directory links to channels ────────────────────────
-
-  type ChannelInput = { platform: string; url: string; label?: string }
-  const channels: ChannelInput[] = []
+  type Ch = { platform: string; url: string; label?: string }
+  const channels: Ch[] = []
 
   const addCh = (platform: string, val: unknown, label?: string) => {
     const url = str(val as string)
@@ -129,7 +111,7 @@ async function processSubmission(data: Record<string, unknown>) {
 
   addCh('google_business', data.googleBusiness)
   addCh('linkedin',        data.linkedinLink)
-  addCh('website',         data.personalWebsite,  'Personal Website')
+  addCh('website',         data.personalWebsite, 'Personal Website')
   addCh('facebook',        data.facebookPage)
   addCh('instagram',       data.instagramPage)
   addCh('twitter',         data.xtwitter)
@@ -138,127 +120,142 @@ async function processSubmission(data: Record<string, unknown>) {
   addCh('zillow',          data.zillowLink)
   addCh('yelp',            data.yelpLink)
 
-  // Micro-sites / LinkTree / custom domains
   if (microSites) {
     const urls = extractUrls(microSites)
     if (urls.length) {
       urls.forEach(url => channels.push({ platform: 'other', url, label: 'Micro-site' }))
-    } else if (microSites.length < 200) {
+    } else {
       channels.push({ platform: 'other', url: microSites, label: 'Micro-site' })
     }
   }
-
-  // Any other links field
   if (anyOther) {
     extractUrls(anyOther).forEach(url => channels.push({ platform: 'other', url }))
   }
 
-  // ── Find the advisor ──────────────────────────────────────────────
+  // ── Find or create the advisor ────────────────────────────────────
 
   const db = svc()
   let advisorId: string | null = null
+  let created = false
 
-  // 1. NMLS (most reliable)
+  // 1. NMLS (most unique)
   if (nmls) {
-    const { data: found } = await db
-      .from('advisors').select('id').eq('nmls_number', nmls).maybeSingle()
+    const { data: found } = await db.from('advisors').select('id').eq('nmls_number', nmls).maybeSingle()
     if (found) advisorId = found.id
   }
 
-  // 2. Email (very reliable — each advisor has a unique work email)
+  // 2. Email
   if (!advisorId && email) {
-    const { data: found } = await db
-      .from('advisors').select('id').ilike('email', email).maybeSingle()
+    const { data: found } = await db.from('advisors').select('id').ilike('email', email).maybeSingle()
     if (found) advisorId = found.id
   }
 
-  // 3. Full name fuzzy match
+  // 3. Full name
   if (!advisorId && fullName) {
-    const { data: found } = await db
-      .from('advisors').select('id').ilike('name', fullName).maybeSingle()
+    const { data: found } = await db.from('advisors').select('id').ilike('name', fullName).maybeSingle()
     if (found) advisorId = found.id
   }
 
+  // 4. Auto-create if no match found
   if (!advisorId) {
-    console.error('[jotform-webhook] Could not match advisor', { nmls, email, fullName })
-    return NextResponse.json(
-      { error: 'No matching advisor found', tried: { nmls, email, fullName } },
-      { status: 404 },
-    )
+    const newName = fullName ?? businessName ?? email ?? 'Unknown Advisor'
+    const { data: newAdvisor, error } = await db
+      .from('advisors')
+      .insert({
+        name:           newName,
+        title:          title ?? null,
+        email:          email ?? null,
+        phone:          phone ?? null,
+        nmls_number:    nmls ?? null,
+        street_address: address.street ?? null,
+        city:           address.city ?? null,
+        state:          address.state ?? null,
+        zip:            address.zip ?? null,
+        service_area:   serviceArea ?? null,
+        bio:            bio ?? null,
+      })
+      .select('id')
+      .single()
+
+    if (error || !newAdvisor) {
+      console.error('[jotform] Auto-create failed', error)
+      return NextResponse.json({ error: 'Could not create advisor' }, { status: 500 })
+    }
+
+    advisorId = newAdvisor.id
+    created = true
   }
 
-  // ── Update advisor profile ────────────────────────────────────────
+  // ── Update existing advisor fields ────────────────────────────────
 
-  // Store extra fields (competitors, team/brand name) in metadata JSONB
-  const metadata: Record<string, string> = {}
-  if (teamName)     metadata.team_name     = teamName
-  if (businessName) metadata.business_name = businessName
-  if (competitors)  metadata.competitors   = competitors
+  if (!created) {
+    const metadata: Record<string, string> = {}
+    if (teamName)     metadata.team_name     = teamName
+    if (businessName) metadata.business_name = businessName
+    if (competitors)  metadata.competitors   = competitors
 
-  const update: Record<string, unknown> = {}
-  if (email)          update.email          = email
-  if (phone)          update.phone          = phone
-  if (title)          update.title          = title
-  if (serviceArea)    update.service_area   = serviceArea
-  if (bio)            update.bio            = bio
-  if (nmls)           update.nmls_number    = nmls
-  if (address.street) update.street_address = address.street
-  if (address.city)   update.city           = address.city
-  if (address.state)  update.state          = address.state
-  if (address.zip)    update.zip            = address.zip
-  if (Object.keys(metadata).length) update.metadata = metadata
+    const update: Record<string, unknown> = {}
+    if (fullName)        update.name           = fullName
+    if (email)           update.email          = email
+    if (phone)           update.phone          = phone
+    if (title)           update.title          = title
+    if (serviceArea)     update.service_area   = serviceArea
+    if (bio)             update.bio            = bio
+    if (nmls)            update.nmls_number    = nmls
+    if (address.street)  update.street_address = address.street
+    if (address.city)    update.city           = address.city
+    if (address.state)   update.state          = address.state
+    if (address.zip)     update.zip            = address.zip
+    if (Object.keys(metadata).length) update.metadata = metadata
 
-  const { error: updateErr } = await db
-    .from('advisors').update(update).eq('id', advisorId)
-
-  if (updateErr) {
-    console.error('[jotform-webhook] Update failed', updateErr)
-    return NextResponse.json({ error: updateErr.message }, { status: 500 })
+    if (Object.keys(update).length) {
+      const { error } = await db.from('advisors').update(update).eq('id', advisorId)
+      if (error) console.error('[jotform] Update failed', error)
+    }
+  } else {
+    // Store extra metadata on the newly created advisor
+    const metadata: Record<string, string> = {}
+    if (teamName)     metadata.team_name     = teamName
+    if (businessName) metadata.business_name = businessName
+    if (competitors)  metadata.competitors   = competitors
+    if (Object.keys(metadata).length) {
+      await db.from('advisors').update({ metadata }).eq('id', advisorId)
+    }
   }
 
   // ── Upsert channels ───────────────────────────────────────────────
-  // For known platforms (not 'other'): delete the old entry and re-insert so
-  // it reflects whatever the advisor entered. For 'other': only add if not
-  // already present (avoid duplicate LinkTree rows).
 
   if (channels.length) {
+    // Replace all known-platform entries (so stale links get cleared)
     const knownPlatforms = [...new Set(
       channels.filter(c => c.platform !== 'other').map(c => c.platform)
     )]
-
-    // Remove stale known-platform entries for this advisor
     if (knownPlatforms.length) {
-      await db
-        .from('advisor_channels')
-        .delete()
-        .eq('advisor_id', advisorId)
-        .in('platform', knownPlatforms)
+      await db.from('advisor_channels').delete()
+        .eq('advisor_id', advisorId).in('platform', knownPlatforms)
     }
 
-    // Dedup 'other' channels against what already exists
+    // Dedup 'other' against existing
     const { data: existingOther } = await db
-      .from('advisor_channels')
-      .select('url')
-      .eq('advisor_id', advisorId)
-      .eq('platform', 'other')
-
-    const existingOtherUrls = new Set((existingOther ?? []).map(c => c.url))
+      .from('advisor_channels').select('url')
+      .eq('advisor_id', advisorId).eq('platform', 'other')
+    const seenUrls = new Set((existingOther ?? []).map(c => c.url))
 
     const toInsert = [
       ...channels.filter(c => c.platform !== 'other'),
-      ...channels.filter(c => c.platform === 'other' && !existingOtherUrls.has(c.url)),
+      ...channels.filter(c => c.platform === 'other' && !seenUrls.has(c.url)),
     ].map(c => ({ ...c, advisor_id: advisorId }))
 
     if (toInsert.length) {
-      const { error: insertErr } = await db.from('advisor_channels').insert(toInsert)
-      if (insertErr) console.error('[jotform-webhook] Channel insert failed', insertErr)
+      await db.from('advisor_channels').insert(toInsert)
     }
   }
 
   return NextResponse.json({
     ok: true,
     advisorId,
-    fieldsUpdated: Object.keys(update),
+    created,
+    fieldsUpdated: created ? 'all' : 'merged',
     channelsUpdated: channels.length,
   })
 }
