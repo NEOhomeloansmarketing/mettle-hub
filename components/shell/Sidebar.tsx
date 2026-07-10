@@ -3,6 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useEffect } from 'react'
 import { Icon } from '@/components/ui/Icon'
 import { CHANNELS } from '@/lib/types'
 import { cls } from '@/lib/utils'
@@ -53,6 +54,11 @@ interface SidebarProps {
 export function Sidebar({ pendingApprovals = 0, taskCount = 0, blogPending = 0 }: SidebarProps) {
   const pathname = usePathname()
 
+  // Close the mobile nav whenever the route changes
+  useEffect(() => {
+    document.body.classList.remove('nav-open')
+  }, [pathname])
+
   function badge(id: string) {
     if (id === 'settings' && pendingApprovals > 0) return pendingApprovals
     if (id === 'tasks'    && taskCount > 0)        return taskCount
@@ -76,8 +82,17 @@ export function Sidebar({ pendingApprovals = 0, taskCount = 0, blogPending = 0 }
     )
   }
 
+  function closeNav() {
+    document.body.classList.remove('nav-open')
+  }
+
   return (
     <aside className="sidebar">
+
+      {/* Mobile close button */}
+      <button className="sidebar__close" onClick={closeNav} aria-label="Close menu">
+        <Icon name="x" size={16} />
+      </button>
 
       {/* Wordmark */}
       <div className="sidebar__top">

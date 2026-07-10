@@ -32,9 +32,16 @@ export function TopBar({ account }: TopBarProps) {
     router.push('/login')
   }
 
+  function toggleNav() {
+    document.body.classList.toggle('nav-open')
+  }
+
   return (
     <header className="topbar">
       <div className="topbar__crumb">
+        <button className="topbar__hamburger" onClick={toggleNav} aria-label="Open menu">
+          <Icon name="menu" size={16} />
+        </button>
         <span className="topbar__crumb-pill">Workspace</span>
         <Icon name="chevron" size={12} />
         <span className="topbar__crumb-current">{title}</span>
