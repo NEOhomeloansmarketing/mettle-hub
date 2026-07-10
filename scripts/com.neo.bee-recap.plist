@@ -3,12 +3,12 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.neo.bee-sync</string>
+  <string>com.neo.bee-recap</string>
 
   <key>ProgramArguments</key>
   <array>
     <string>/usr/local/bin/node</string>
-    <string>/Users/colinjenson/Downloads/mettle-hub/scripts/bee-sync.mjs</string>
+    <string>/Users/colinjenson/Downloads/mettle-hub/scripts/bee-daily-recap.mjs</string>
   </array>
 
   <key>EnvironmentVariables</key>
@@ -19,30 +19,24 @@
     <string>https://mettle-hub.vercel.app</string>
     <key>BEE_CLI</key>
     <string>/opt/homebrew/lib/node_modules/@beeai/cli/dist/platforms/mac-arm64/bee</string>
+    <key>RESEND_API_KEY</key>
+    <string>PASTE_YOUR_RESEND_KEY_HERE</string>
+    <key>FROM_EMAIL</key>
+    <string>hub@neohomeloans.com</string>
   </dict>
 
-  <!-- Run at 8 AM, 12 PM, and 6 PM local time -->
+  <!-- 4 PM Mountain Time daily -->
   <key>StartCalendarInterval</key>
-  <array>
-    <dict>
-      <key>Hour</key><integer>8</integer>
-      <key>Minute</key><integer>0</integer>
-    </dict>
-    <dict>
-      <key>Hour</key><integer>12</integer>
-      <key>Minute</key><integer>0</integer>
-    </dict>
-    <dict>
-      <key>Hour</key><integer>18</integer>
-      <key>Minute</key><integer>0</integer>
-    </dict>
-  </array>
+  <dict>
+    <key>Hour</key><integer>16</integer>
+    <key>Minute</key><integer>0</integer>
+  </dict>
 
   <key>StandardOutPath</key>
-  <string>/tmp/bee-sync.log</string>
+  <string>/tmp/bee-recap.log</string>
 
   <key>StandardErrorPath</key>
-  <string>/tmp/bee-sync.error.log</string>
+  <string>/tmp/bee-recap.error.log</string>
 
   <key>RunAtLoad</key>
   <false/>
