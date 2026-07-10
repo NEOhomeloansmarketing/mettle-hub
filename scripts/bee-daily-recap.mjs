@@ -58,63 +58,115 @@ async function beeTool(name, args = {}) {
 
 // ── Email HTML ────────────────────────────────────────────────────
 
-function buildEmail(conversations, tasks) {
+function sectionHeader(label, color = '#4f46e5') {
+  return `<div style="font-size:11px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:1.2px;margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid ${color}20;">${label}</div>`
+}
+
+function bulletPoints(lines) {
+  if (!lines.length) return '<p style="color:#aaa;font-size:13px;margin:0;">Nothing captured.</p>'
+  return `<ul style="margin:0;padding-left:18px;">${lines.map(l =>
+    `<li style="font-size:14px;color:#333;line-height:1.7;margin-bottom:4px;">${l}</li>`
+  ).join('')}</ul>`
+}
+
+function buildEmail(conversations, tasks, personalItems, daySummary) {
   const today = new Date().toLocaleDateString('en-US', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Denver',
   })
 
-  const meetingRows = conversations.length
-    ? conversations.map(c => `
-      <div style="margin-bottom:24px;padding:16px;background:#f8f9fa;border-radius:8px;border-left:3px solid #4f46e5;">
-        <div style="font-weight:600;font-size:15px;color:#111;margin-bottom:8px;">${c.short_summary || 'Meeting'}</div>
-        <div style="font-size:13px;color:#555;line-height:1.6;">${(c.summary || '').split('\n').filter(l => l.trim() && !l.startsWith('#')).slice(0, 5).join('<br>')}</div>
-      </div>`).join('')
-    : '<p style="color:#888;font-size:14px;">No meetings captured today.</p>'
+  // ── Day recap ──────────────────────────────────────────────────
+  const dayRecapHtml = daySummary
+    ? `<p style="font-size:14px;color:#444;line-height:1.8;margin:0;">${daySummary}</p>`
+    : '<p style="font-size:14px;color:#aaa;margin:0;">No summary available.</p>'
 
-  const taskRows = tasks.length
-    ? `<table style="width:100%;border-collapse:collapse;">
-        ${tasks.map(t => `
-        <tr style="border-bottom:1px solid #eee;">
-          <td style="padding:10px 8px;font-size:14px;color:#111;">${t.title}</td>
-          <td style="padding:10px 8px;font-size:12px;color:#888;white-space:nowrap;">${t.priority}</td>
-          <td style="padding:10px 8px;font-size:12px;color:#888;white-space:nowrap;">${t.due ? new Date(t.due).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}</td>
-        </tr>`).join('')}
-      </table>`
-    : '<p style="color:#888;font-size:14px;">No new tasks added today.</p>'
+  // ── Meeting recaps ─────────────────────────────────────────────
+  const meetingsHtml = conversations.length
+    ? conversations.map(c => {
+        const bullets = (c.summary ?? '')
+          .split('\n')
+          .map(l => l.replace(/^[-*•]\s*/, '').replace(/\*\*/g, '').trim())
+          .filter(l => l && !l.startsWith('#') && !l.startsWith('##') && l.length > 10)
+          .slice(0, 6)
+
+        const startTime = c.start_time
+          ? new Date(c.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Denver' })
+          : ''
+
+        return `
+          <div style="margin-bottom:20px;padding:16px;background:#fafafa;border-radius:8px;border-left:3px solid #4f46e5;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+              <div style="font-weight:600;font-size:14px;color:#111;">${c.short_summary || 'Meeting'}</div>
+              ${startTime ? `<div style="font-size:12px;color:#aaa;">${startTime}</div>` : ''}
+            </div>
+            ${bulletPoints(bullets)}
+          </div>`
+      }).join('')
+    : '<p style="color:#aaa;font-size:14px;">No meetings captured today.</p>'
+
+  // ── Personal highlights ────────────────────────────────────────
+  const personalHtml = personalItems.length
+    ? personalItems.map(p =>
+        `<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid #f5f5f5;">
+          <span style="font-size:18px;line-height:1.3;">${p.emoji || '✦'}</span>
+          <span style="font-size:14px;color:#444;line-height:1.6;">${p.text}</span>
+        </div>`
+      ).join('')
+    : '<p style="color:#aaa;font-size:14px;">Nothing personal captured today.</p>'
+
+  // ── Tasks created today ────────────────────────────────────────
+  const tasksHtml = tasks.length
+    ? tasks.map(t => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f5f5f5;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="width:8px;height:8px;border-radius:50%;background:#4f46e5;flex-shrink:0;display:inline-block;"></span>
+            <span style="font-size:14px;color:#222;">${t.title}</span>
+          </div>
+          <span style="font-size:12px;color:#aaa;white-space:nowrap;margin-left:12px;">${t.priority}</span>
+        </div>`
+      ).join('')
+    : '<p style="color:#aaa;font-size:14px;">No new tasks added today.</p>'
 
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-  <div style="max-width:600px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.08);">
+  <div style="max-width:620px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.08);">
 
     <!-- Header -->
     <div style="background:#4f46e5;padding:28px 32px;">
-      <div style="font-size:12px;color:rgba(255,255,255,0.7);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Daily Recap</div>
-      <div style="font-size:22px;font-weight:700;color:#fff;">${today}</div>
+      <div style="font-size:11px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;">Daily Recap</div>
+      <div style="font-size:24px;font-weight:700;color:#fff;">${today}</div>
     </div>
 
     <div style="padding:32px;">
 
-      <!-- Meetings -->
+      <!-- 1. Day Recap -->
       <div style="margin-bottom:32px;">
-        <div style="font-size:11px;font-weight:700;color:#4f46e5;text-transform:uppercase;letter-spacing:1px;margin-bottom:16px;">
-          Today's Meetings (${conversations.length})
-        </div>
-        ${meetingRows}
+        ${sectionHeader('📋 Day Recap')}
+        ${dayRecapHtml}
       </div>
 
-      <!-- Tasks Created Today -->
+      <!-- 2. Meeting Recaps -->
       <div style="margin-bottom:32px;">
-        <div style="font-size:11px;font-weight:700;color:#4f46e5;text-transform:uppercase;letter-spacing:1px;margin-bottom:16px;">
-          Tasks Added Today (${tasks.length})
-        </div>
-        ${taskRows}
+        ${sectionHeader(`🗓 Meeting Recaps (${conversations.length})`)}
+        ${meetingsHtml}
       </div>
 
-      <!-- Footer link -->
-      <div style="text-align:center;padding-top:16px;border-top:1px solid #eee;">
-        <a href="${METTLE_URL}/tasks" style="display:inline-block;padding:10px 24px;background:#4f46e5;color:#fff;border-radius:6px;font-size:14px;font-weight:600;text-decoration:none;">
+      <!-- 3. Personal Highlights -->
+      <div style="margin-bottom:32px;">
+        ${sectionHeader('🌿 Personal Highlights', '#059669')}
+        ${personalHtml}
+      </div>
+
+      <!-- 4. Tasks Created Today -->
+      <div style="margin-bottom:32px;">
+        ${sectionHeader(`✅ Tasks Created Today (${tasks.length})`, '#d97706')}
+        ${tasksHtml}
+      </div>
+
+      <!-- Footer -->
+      <div style="text-align:center;padding-top:20px;border-top:1px solid #eee;">
+        <a href="${METTLE_URL}/tasks" style="display:inline-block;padding:11px 28px;background:#4f46e5;color:#fff;border-radius:6px;font-size:14px;font-weight:600;text-decoration:none;">
           Open Task Board →
         </a>
       </div>
@@ -130,7 +182,7 @@ function buildEmail(conversations, tasks) {
 async function main() {
   console.log(`[recap] Starting — ${new Date().toISOString()}`)
 
-  // 1. Pull today's conversations from Bee
+  // 1. Pull today's conversations + todos from Bee
   startMcp()
   await mcpCall('initialize', {
     protocolVersion: '2024-11-05',
@@ -138,7 +190,10 @@ async function main() {
     clientInfo: { name: 'bee-recap', version: '1.0' },
   })
 
-  const todayData = await beeTool('bee_get_today')
+  const [todayData, todosData] = await Promise.all([
+    beeTool('bee_get_today'),
+    beeTool('bee_list_todos', { limit: 50 }),
+  ])
   proc.stdin.end()
 
   const conversations = (todayData?.recentConversations ?? []).filter(c => {
@@ -147,13 +202,50 @@ async function main() {
     return start.toDateString() === now.toDateString()
   })
 
-  // 2. Fetch tasks created today from hub
+  // 2. AI analysis — day summary + personal highlights
+  const allTodos = (todosData?.todos ?? []).map(t => t.text.replace(/^[\p{Emoji}\s]+/u, '').trim())
+  const conversationText = conversations.map(c =>
+    `[${c.short_summary || 'Meeting'}]\n${c.summary ?? ''}`
+  ).join('\n\n')
+
+  let personalItems = []
+  let daySummary = ''
+
+  if (allTodos.length || conversationText || conversations.length) {
+    const { Anthropic } = await import('@anthropic-ai/sdk')
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+    const context = `Todos:\n${allTodos.join('\n') || 'none'}\n\nMeetings today:\n${conversationText.slice(0, 4000) || 'none'}`
+
+    const [summaryMsg, personalMsg] = await Promise.all([
+      anthropic.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 300,
+        system: `Write a concise 2-4 sentence summary of the person's work day based on their meetings and todos. Focus on what was accomplished, decisions made, and key themes. Write in second person (You...). Plain text only, no markdown.`,
+        messages: [{ role: 'user', content: context }],
+      }),
+      anthropic.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 512,
+        system: `Extract personal highlights from a person's day — family moments, personal wins, health, hobbies, social interactions, personal reminders. Keep each one short (under 15 words). Return ONLY a JSON array: [{"emoji":"🏠","text":"..."},{"emoji":"👨‍👩‍👧","text":"..."}]. Return [] if nothing personal is present.`,
+        messages: [{ role: 'user', content: context }],
+      }),
+    ])
+
+    daySummary = summaryMsg.content[0].text.trim()
+    try {
+      const raw = personalMsg.content[0].text.trim()
+      const match = raw.match(/\[[\s\S]*\]/)
+      if (match) personalItems = JSON.parse(match[0])
+    } catch {}
+  }
+
+  // 3. Fetch tasks created today from hub
   const tasksRes = await fetch(`${METTLE_URL}/api/bee/today-tasks?secret=${SYNC_SECRET}`)
   const tasksData = await tasksRes.json()
   const tasks = tasksData?.tasks ?? []
 
-  // 3. Build and send email
-  const html = buildEmail(conversations, tasks)
+  // 4. Build and send email
+  const html = buildEmail(conversations, tasks, personalItems, daySummary)
 
   const emailRes = await fetch('https://api.resend.com/emails', {
     method: 'POST',

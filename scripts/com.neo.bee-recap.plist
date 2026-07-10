@@ -20,9 +20,11 @@
     <key>BEE_CLI</key>
     <string>/opt/homebrew/lib/node_modules/@beeai/cli/dist/platforms/mac-arm64/bee</string>
     <key>RESEND_API_KEY</key>
-    <string>PASTE_YOUR_RESEND_KEY_HERE</string>
+    <string>re_dwVN7LBS_Gygg5eCPmGkk3hbdaNA8M5eZ</string>
     <key>FROM_EMAIL</key>
-    <string>hub@neohomeloans.com</string>
+    <string>hub@neoentrepreneurhomeloans.com</string>
+    <key>ANTHROPIC_API_KEY</key>
+    <string>PASTE_YOUR_ANTHROPIC_KEY_HERE</string>
   </dict>
 
   <!-- 4 PM Mountain Time daily -->
