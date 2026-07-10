@@ -83,6 +83,17 @@ export async function POST(req: NextRequest) {
 }
 
 async function processSubmission(data: Record<string, unknown>) {
+  const db = svc()
+
+  // Always log what we received so we can debug field name mismatches
+  const receivedKeys = Object.keys(data).join(', ')
+  try {
+    await db.from('activity').insert({
+      kind: 'system',
+      label: `[Jotform] Webhook received. Keys: ${receivedKeys.slice(0, 300)}`,
+    })
+  } catch {}
+
   // ── Extract fields using the actual Jotform variable names ────────
 
   const fullName    = parseName(data.name)          // {name}
@@ -134,7 +145,6 @@ async function processSubmission(data: Record<string, unknown>) {
 
   // ── Find or create the advisor ────────────────────────────────────
 
-  const db = svc()
   let advisorId: string | null = null
   let created = false
 

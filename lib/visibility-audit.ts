@@ -147,7 +147,7 @@ ${napBlock}
 KNOWN ONLINE CHANNELS:
 ${channelList}
 
-Perform a comprehensive AI Visibility Audit following the scoring rubric and standards in your system instructions. Be thorough, specific, and actionable. The advisor and their marketing team will act directly on your output, so every action item must be precise enough to implement today.
+Perform a comprehensive AI Visibility Audit following the scoring rubric and standards in your system instructions. Be thorough, specific, and actionable. The advisor and their marketing team will act directly on your output, so every action item must be precise enough to implement today. Keep field values concise — notes should be 1-2 sentences, action text should be a single clear instruction. Do not add filler phrases or repeat context already visible in other fields.
 
 Return this exact JSON structure (all fields required, no markdown fences):
 {
@@ -217,7 +217,7 @@ Return this exact JSON structure (all fields required, no markdown fences):
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 8096,
+    max_tokens: 3500,
     system: systemPrompt,
     messages: [
       { role: 'user', content: userPrompt },
