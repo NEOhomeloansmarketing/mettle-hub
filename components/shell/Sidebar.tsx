@@ -27,9 +27,7 @@ const NAV_SECTIONS = [
     section: 'Marketing',
     items: [
       { id: 'blog',      label: 'Blog Engine', icon: 'blog',       href: '/blog'      },
-      { id: 'paid',      label: 'Paid Ads',    icon: 'chart-bar',  href: '/paid'      },
       { id: 'analytics', label: 'Analytics',   icon: 'chart-line', href: '/analytics' },
-      { id: 'leads',     label: 'Lead Report', icon: 'users',      href: '/leads'     },
     ],
   },
   {
