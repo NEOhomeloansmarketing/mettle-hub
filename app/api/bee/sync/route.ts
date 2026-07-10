@@ -11,8 +11,8 @@ function serviceClient() {
   )
 }
 
-interface BeeTodo {
-  id: number
+interface BeeCandidate {
+  source?: string
   text: string
   details?: string
 }
@@ -23,12 +23,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { todos } = await req.json() as { todos: BeeTodo[] }
+  const { todos, existingTasks: passedExisting } = await req.json() as {
+    todos: BeeCandidate[]
+    existingTasks?: { title: string }[]
+  }
   if (!todos?.length) return NextResponse.json({ ok: true, inserted: 0 })
 
   const supabase = serviceClient()
 
-  // Look up Colin Jenson's account ID and General section ID
   const [{ data: colin }, { data: generalSection }] = await Promise.all([
     supabase.from('accounts').select('id').ilike('name', '%colin%jenson%').maybeSingle(),
     supabase.from('sections').select('id').ilike('name', '%general%').maybeSingle(),
@@ -36,58 +38,67 @@ export async function POST(req: NextRequest) {
 
   if (!colin) return NextResponse.json({ error: 'Could not find Colin Jenson account' }, { status: 500 })
 
-  // Use AI to filter work-related tasks only
-  const todoList = todos.map((t, i) => `${i + 1}. ${t.text}${t.details ? ` — ${t.details}` : ''}`).join('\n')
+  // Fetch existing open tasks if not passed in
+  let existingTitles: string[] = passedExisting?.map(t => t.title) ?? []
+  if (!existingTitles.length) {
+    const { data: dbTasks } = await supabase
+      .from('tasks')
+      .select('title')
+      .eq('assignee_id', colin.id)
+      .neq('status', 'Done')
+    existingTitles = (dbTasks ?? []).map(t => t.title)
+  }
+
+  // Build prompt with full context so AI can deduplicate semantically
+  const candidateList = todos
+    .map((t, i) => `${i + 1}. ${t.text}${t.details ? ` — ${t.details}` : ''}`)
+    .join('\n')
+
+  const existingList = existingTitles.length
+    ? existingTitles.map((t, i) => `${i + 1}. ${t}`).join('\n')
+    : 'None'
 
   const msg = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
-    max_tokens: 512,
-    system: `You filter a list of todos for a mortgage marketing professional. Return ONLY a JSON array of the 1-based index numbers that are clearly work-related.
+    max_tokens: 1024,
+    system: `You are filtering a list of candidate tasks for a mortgage marketing professional named Colin.
 
-Work = anything about: clients, loans, campaigns, websites, marketing, team, meetings, CRM, tools, content, ads, follow-ups, business tasks, onboarding, reporting.
-Personal = family, personal appointments, hobbies, health (unless work health), personal errands, non-work social plans.
+Your job: return ONLY the indices of candidates that are:
+1. Work-related (not personal errands, shopping, family, health appointments, etc.)
+2. NOT already covered by an existing open task — even if worded differently. Be smart about semantic matches (e.g. "send URLs to Josh" and "email Josh with site URLs" are the same thing).
+3. Genuinely actionable (not vague observations)
 
-When in doubt, include it. Return: [1, 3, 5] — just the indices, nothing else.`,
-    messages: [{ role: 'user', content: todoList }],
+Return a JSON array of 1-based indices: [1, 3, 5]
+Return [] if nothing new and work-related is found.`,
+    messages: [{
+      role: 'user',
+      content: `EXISTING OPEN TASKS (do not duplicate these):\n${existingList}\n\nCANDIDATE TASKS:\n${candidateList}`,
+    }],
   })
 
-  let workIndices: number[] = []
+  let newIndices: number[] = []
   try {
     const raw = (msg.content[0] as { type: 'text'; text: string }).text.trim()
     const match = raw.match(/\[[\d,\s]*\]/)
-    if (match) workIndices = JSON.parse(match[0])
+    if (match) newIndices = JSON.parse(match[0])
   } catch {
-    // If parsing fails, include all
-    workIndices = todos.map((_, i) => i + 1)
+    newIndices = []
   }
 
-  const workTodos = todos.filter((_, i) => workIndices.includes(i + 1))
-  if (!workTodos.length) return NextResponse.json({ ok: true, inserted: 0, skipped: todos.length })
+  const toInsert = todos.filter((_, i) => newIndices.includes(i + 1))
+  if (!toInsert.length) return NextResponse.json({ ok: true, inserted: 0, skipped: todos.length })
 
-  // Check for existing tasks to avoid duplicates (match on bee_todo_id if stored, or title)
-  const { data: existingTasks } = await supabase
-    .from('tasks')
-    .select('title')
-    .eq('assignee_id', colin.id)
-    .eq('status', 'To Do')
-
-  const existingTitles = new Set((existingTasks ?? []).map(t => t.title.toLowerCase().trim()))
-
-  const rows = workTodos
-    .filter(t => !existingTitles.has(t.text.replace(/^[\p{Emoji}\s]+/u, '').trim().toLowerCase()))
-    .map(t => ({
-      title: t.text.replace(/^[\p{Emoji}\s]+/u, '').trim(),
-      description: t.details ?? '',
-      assignee_id: colin.id,
-      section_id: generalSection?.id ?? null,
-      priority: 'Medium' as const,
-      channel: 'All' as const,
-      status: 'To Do' as const,
-      due: null,
-      meeting_id: null,
-    }))
-
-  if (!rows.length) return NextResponse.json({ ok: true, inserted: 0, message: 'All tasks already exist' })
+  const rows = toInsert.map(t => ({
+    title: t.text.replace(/^[\p{Emoji}\s]+/u, '').trim(),
+    description: t.details ?? '',
+    assignee_id: colin.id,
+    section_id: generalSection?.id ?? null,
+    priority: 'Medium' as const,
+    channel: 'All' as const,
+    status: 'To Do' as const,
+    due: null,
+    meeting_id: null,
+  }))
 
   const { error } = await supabase.from('tasks').insert(rows)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -97,5 +108,5 @@ When in doubt, include it. Return: [1, 3, 5] — just the indices, nothing else.
     label: `Synced ${rows.length} task${rows.length !== 1 ? 's' : ''} from Bee`,
   })
 
-  return NextResponse.json({ ok: true, inserted: rows.length, skipped: todos.length - workTodos.length })
+  return NextResponse.json({ ok: true, inserted: rows.length, skipped: todos.length - toInsert.length })
 }

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.neo.bee-sync</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/node</string>
+    <string>/Users/colinjenson/Downloads/mettle-hub/scripts/bee-sync.mjs</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>BEE_SYNC_SECRET</key>
+    <string>5a13528ad10c0fc0b435d93029a6a00cb392f47cba3fc535</string>
+    <key>METTLE_URL</key>
+    <string>https://mettle-hub.vercel.app</string>
+    <key>BEE_CLI</key>
+    <string>/opt/homebrew/lib/node_modules/@beeai/cli/dist/platforms/mac-arm64/bee</string>
+  </dict>
+
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>8</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/bee-sync.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/tmp/bee-sync.error.log</string>
+
+  <key>RunAtLoad</key>
+  <false/>
+</dict>
+</plist>
