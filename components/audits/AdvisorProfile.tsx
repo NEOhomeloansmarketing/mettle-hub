@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type {
@@ -193,6 +193,27 @@ export function AdvisorProfile({ advisor: initial }: AdvisorProfileProps) {
   const latestAudit = advisor.visibility_audits[0] ?? null
   const color = avatarColor(advisor.name)
   const pendingTasks = advisorTasks.filter(t => !t.completed).length
+
+  // ── Poll while audit is RUNNING ───────────────────────────────────
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  useEffect(() => {
+    if (latestAudit?.status !== 'RUNNING') {
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+      return
+    }
+    if (pollRef.current) return // already polling
+    pollRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/advisors/${advisor.id}/audit`)
+        if (!res.ok) return
+        const audits: VisibilityAudit[] = await res.json()
+        if (audits[0]?.status !== 'RUNNING') {
+          setAdvisor(prev => ({ ...prev, visibility_audits: audits }))
+        }
+      } catch {}
+    }, 5000)
+    return () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null } }
+  }, [latestAudit?.status, advisor.id])
 
   // ── Section save ──────────────────────────────────────────────────
 

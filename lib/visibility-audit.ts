@@ -215,7 +215,7 @@ Return this exact JSON structure (all fields required, no markdown fences):
   // Use fetch directly so this works in both Node.js and Edge runtimes.
   // AbortController gives a clean error at 27s instead of a hard Edge cut at 30s.
   const abort = new AbortController()
-  const timer = setTimeout(() => abort.abort(), 27_000)
+  const timer = setTimeout(() => abort.abort(), 24_000)
 
   let res: Response
   try {
