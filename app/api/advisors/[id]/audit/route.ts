@@ -3,9 +3,9 @@ import { createClient as serviceClient } from '@supabase/supabase-js'
 import { runVisibilityAudit } from '@/lib/visibility-audit'
 import type { Advisor, AdvisorChannel } from '@/lib/types'
 
-// Edge runtime gives 30s on all Vercel plans (vs 10s serverless on Hobby).
-// Upgrade to Vercel Pro + switch back to Node.js runtime for a reliable 60s.
-export const runtime = 'edge'
+// Node.js runtime with 5-minute timeout — required for Claude + processing.
+// Edge runtime only gives 30s and blocks the Anthropic SDK.
+export const maxDuration = 300
 
 function svc() {
   return serviceClient(
@@ -36,8 +36,15 @@ export async function POST(_req: NextRequest, { params }: Ctx) {
   const { id } = await params
   const db = svc()
 
-  // Mark any stuck RUNNING audits (older than 2 min) as FAILED before starting a new one
-  const staleThreshold = new Date(Date.now() - 2 * 60 * 1000).toISOString()
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return NextResponse.json(
+      { error: 'ANTHROPIC_API_KEY is not set. Add it in Vercel → Settings → Environment Variables.' },
+      { status: 500 },
+    )
+  }
+
+  // Mark any stuck RUNNING audits (older than 5 min) as FAILED before starting
+  const staleThreshold = new Date(Date.now() - 5 * 60 * 1000).toISOString()
   await db
     .from('visibility_audits')
     .update({ status: 'FAILED' })
@@ -74,18 +81,58 @@ export async function POST(_req: NextRequest, { params }: Ctx) {
       .update({
         status: 'COMPLETE',
         score: result.score,
-        extracted_nap: result.extractedNap,
-        score_breakdown: result.scoreBreakdown,
-        action_items: result.actionItems,
-        conflicts: result.conflicts,
-        socials: result.socials,
-        query_visibility: result.queryVisibility,
+        extracted_nap: result.extractedNap ?? null,
+        score_breakdown: result.scoreBreakdown ?? null,
+        action_items: result.actionItems ?? null,
+        conflicts: result.conflicts ?? null,
+        socials: result.socials ?? null,
+        query_visibility: result.queryVisibility ?? null,
         raw_result: result,
         completed_at: new Date().toISOString(),
       })
       .eq('id', auditRow.id)
 
     if (updateErr) throw updateErr
+
+    // Auto-create one consolidated task in the task board (best effort — never fails the request)
+    if (result.actionItems?.length) {
+      try {
+        const auditDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+        const actionLines = result.actionItems
+          .map(item => {
+            const num = item.priority ?? item.rank ?? 0
+            const urlLine = item.url ? `\n   ${item.url}` : ''
+            return `${num}. [${item.platform}] ${item.action}${urlLine}`
+          })
+          .join('\n\n')
+
+        const websiteChannel = (advisor.advisor_channels ?? []).find(
+          (c: AdvisorChannel) => c.platform === 'website',
+        )
+        const websiteNote = websiteChannel ? `Website: ${websiteChannel.url}` : 'Website: not on file'
+
+        await db.from('tasks').insert({
+          title: `${advisor.name} - AI Visibility Updates`,
+          description: [
+            `Visibility audit completed for ${advisor.name} on ${auditDate}.`,
+            `Score: ${result.score}/100`,
+            websiteNote,
+            '',
+            'Action Items:',
+            actionLines,
+          ].join('\n'),
+          priority: 'High',
+          status: 'To Do',
+          channel: 'Internal',
+          assignee_id: null,
+          section_id: null,
+          due: null,
+          meeting_id: null,
+        })
+      } catch (taskErr) {
+        console.error('[audit] Task creation failed (non-fatal):', taskErr)
+      }
+    }
 
     const { data: final } = await db
       .from('visibility_audits')

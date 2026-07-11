@@ -1,9 +1,37 @@
+import Anthropic from '@anthropic-ai/sdk'
 import type { Advisor, AdvisorChannel, AuditResult } from '@/lib/types'
+
+async function fetchNapFormAsBase64(
+  url: string,
+): Promise<{ data: string; mediaType: string } | null> {
+  try {
+    const controller = new AbortController()
+    setTimeout(() => controller.abort(), 15_000)
+    const res = await fetch(url, { signal: controller.signal })
+    if (!res.ok) return null
+    const contentType = res.headers.get('content-type') ?? ''
+    const buffer = await res.arrayBuffer()
+    const data = Buffer.from(buffer).toString('base64')
+    if (contentType.includes('pdf') || url.toLowerCase().endsWith('.pdf'))
+      return { data, mediaType: 'application/pdf' }
+    if (contentType.includes('png') || url.toLowerCase().endsWith('.png'))
+      return { data, mediaType: 'image/png' }
+    if (contentType.includes('webp') || url.toLowerCase().endsWith('.webp'))
+      return { data, mediaType: 'image/webp' }
+    if (contentType.includes('image') || /\.(jpg|jpeg)$/i.test(url))
+      return { data, mediaType: 'image/jpeg' }
+    return null
+  } catch {
+    return null
+  }
+}
 
 function repairJson(raw: string): string {
   return raw
-    .replace(/,\s*([}\]])/g, '$1')
-    .replace(/\/\/[^\n]*/g, '')
+    .replace(/(?<![":,\w])\/\/[^\n]*/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/,(\s*[}\]])/g, '$1')
+    .replace(/—/g, '-')
     .trim()
 }
 
@@ -11,241 +39,212 @@ export async function runVisibilityAudit(
   advisor: Advisor,
   channels: AdvisorChannel[],
 ): Promise<AuditResult> {
-  const napBlock = [
+  const client = new Anthropic()
+
+  const napForm = advisor.nap_form_url
+    ? await fetchNapFormAsBase64(advisor.nap_form_url)
+    : null
+
+  const knownProfiles = channels.length
+    ? channels.map(c => `- ${c.platform}: ${c.url}${c.label ? ` (${c.label})` : ''}`).join('\n')
+    : 'No social profiles on record yet.'
+
+  const fallbackNap = [
     `Name: ${advisor.name}`,
-    advisor.title        ? `Title: ${advisor.title}`                                                  : null,
-    advisor.nmls_number  ? `NMLS#: ${advisor.nmls_number}`                                            : null,
-    advisor.phone        ? `Phone: ${advisor.phone}`                                                  : null,
-    advisor.email        ? `Email: ${advisor.email}`                                                  : null,
-    advisor.street_address ? `Street: ${advisor.street_address}`                                      : null,
+    advisor.title        ? `Title: ${advisor.title}`        : null,
+    advisor.nmls_number  ? `NMLS#: ${advisor.nmls_number}`  : null,
+    advisor.phone        ? `Phone: ${advisor.phone}`         : null,
+    advisor.email        ? `Email: ${advisor.email}`         : null,
+    advisor.street_address ? `Street: ${advisor.street_address}` : null,
     (advisor.city || advisor.state || advisor.zip)
-      ? `City/State/Zip: ${[advisor.city, advisor.state, advisor.zip].filter(Boolean).join(', ')}`   : null,
-    advisor.service_area  ? `Service Area / Top Markets: ${advisor.service_area}`                     : null,
-    advisor.bio           ? `Target Audience / Who They Serve: ${advisor.bio}`                        : null,
-    advisor.metadata?.competitors ? `Known Competitors: ${advisor.metadata.competitors}`              : null,
+      ? `City/State/Zip: ${[advisor.city, advisor.state, advisor.zip].filter(Boolean).join(', ')}` : null,
+    advisor.service_area  ? `Service Area: ${advisor.service_area}` : null,
+    advisor.bio           ? `Who They Serve: ${advisor.bio}` : null,
+    advisor.metadata?.competitors ? `Known Competitors: ${advisor.metadata.competitors}` : null,
   ].filter(Boolean).join('\n')
 
-  const channelList = channels.length
-    ? channels.map(c => `- ${c.platform}: ${c.url}${c.label ? ` (${c.label})` : ''}`).join('\n')
-    : '(no channels provided — advisor has not submitted social media links yet)'
+  const prompt = `You are the NEO Home Loans Advisor Visibility Strategist - a compliance-aware digital visibility auditor.
 
-  const systemPrompt = `You are a senior digital marketing strategist specializing in local search, AI search readiness, and personal branding for mortgage professionals. You have deep expertise in how Google Business Profile, LinkedIn, Facebook, Instagram, Zillow, Yelp, Realtor.com, and other platforms affect a mortgage advisor's ability to be found online — both in traditional search and increasingly in AI-powered search tools like ChatGPT, Perplexity, Claude, and Google AI Overviews.
+CORE RULES:
+- Write like a real strategist advising a real person - plain English, specific, short, actionable.
+- Every action item must reference THIS advisor's actual data. No generic advice.
+- Never guarantee rankings, verification, leads, or outcomes.
+- Never use em dashes. Use a regular hyphen (-) instead.
 
-Your task is to perform a comprehensive, deeply researched AI Visibility Audit for a mortgage advisor at NEO Home Loans (powered by Better Mortgage). NEO Home Loans is a digitally-native mortgage brand that positions its advisors as tech-forward, client-first loan officers. Advisors are often licensed across multiple states and serve specific professional niches (physicians, CRNAs, entrepreneurs, etc.).
+${napForm
+    ? `The attached document is this advisor's NAP (Name, Address, Phone) form. This is the CANONICAL SOURCE OF TRUTH. Extract every field precisely as written on the form. Every discrepancy found on any platform must be compared against these canonical values.`
+    : `No NAP form uploaded. Use this profile data as the canonical NAP:\n${fallbackNap}`
+  }
 
-You do NOT have live internet access. Use your extensive training knowledge of how these platforms work, what strong vs. weak profiles look like, typical issues for mortgage professionals, and current best practices for AI search readiness to perform a thorough assessment.
+KNOWN ONLINE PROFILES ON RECORD (these are the ONLY platforms to audit):
+${knownProfiles}
 
----
+YOUR TASK:
+Audit each of the known profiles listed above against the canonical NAP. You are NOT recommending new platforms - only review what already exists. Identify what needs to be UPDATED or FIXED on the platforms they already have.
 
-SCORING RUBRIC (100 points total):
+SCOPE RULES:
+- Only create action items for platforms listed in KNOWN ONLINE PROFILES.
+- Do NOT suggest creating new accounts on platforms not already listed.
+- Base all findings on the canonical NAP vs. the listed profile URLs.
 
-1. listingsHealth (30 pts max)
-   — 28–30: GBP claimed + optimized, Zillow/Yelp/Realtor active, consistent citations in directories
-   — 20–27: GBP present but incomplete, 2+ directories present but with gaps
-   — 10–19: Only 1–2 platforms, GBP unclaimed or missing, major directories absent
-   — 0–9: No verifiable directory presence, no GBP, essentially invisible in listings
-   Deduct for: missing phone/address, unclaimed GBP, NMLS not visible on profiles, no reviews
+WHAT TO CHECK ON EACH KNOWN PROFILE:
+1. NAP accuracy - does the name, address, phone, email, and title match canonical exactly?
+2. Old employer branding - is any prior company name still showing?
+3. Name format - is the name spelled exactly as canonical?
+4. Title/category - does the job title or business category match canonical?
+5. Incomplete profile data - missing bio, photos, or hours on a profile they already have
+6. Website - local keywords, service area language, schema markup, mobile-friendliness
+7. AI search readiness - canonical entity signals, structured data, FAQ content
+8. Reviews - volume, recency, and response patterns visible from public profile
 
-2. reviews (20 pts max)
-   — 18–20: 50+ Google reviews, 4.8+ star avg, recent reviews (within 60 days), response cadence
-   — 12–17: 20–49 reviews or 4.5–4.7 avg or reviews >90 days old
-   — 6–11: 5–19 reviews, inconsistent recency, no review strategy visible
-   — 0–5: <5 reviews, no review presence, or no GBP to collect reviews on
-   Assess based on platform maturity, advisor tenure signals, and number of channels provided
+SCORING (conservative - only award points with real evidence):
+- Listings Health /30: NAP accuracy across directory/listing profiles
+- Reviews & Reputation /20: review volume, recency, platform diversity, sentiment signals
+- Website Local Relevance /20: local keywords, service area pages, schema, mobile-friendliness
+- Brand & Entity Consistency /15: identical name/title/photo/employer on all known platforms
+- AI Search Readiness /15: canonical entity signals, structured data, FAQ content
 
-3. websiteLocal (20 pts max)
-   — 18–20: Personal/advisor website with local service area pages, schema markup likely, fast load, mobile-optimized
-   — 12–17: NEO advisor site present but templated with limited local customization
-   — 6–11: Only social profiles, no personal website
-   — 0–5: No web presence beyond a GBP listing
-   Note: NEO advisor sites (format: [name].neohomeloans.com) are templated — credit for presence but flag limited local SEO control
+ACTION ITEMS - FORMAT RULES:
+- Numbered 1 through N, most urgent first
+- SHORT - one bold key term, then 1-2 tight sentences max
+- Only reference platforms from the known list above
+- Include the profile URL in the "url" field
+- Format: "Bold Key Term: One or two specific sentences telling them exactly what to fix and what the correct value should be."
+- Good example: "Update Facebook Title: Your Facebook page still shows 'Loan Officer at OldCompany.' Change it to 'Mortgage Advisor at NEO Home Loans'."
+- Bad example: "Consider updating your social profiles to reflect your current employer." (too vague)
 
-4. brandConsistency (15 pts max)
-   — 13–15: NAP matches exactly across all channels, handles consistent, title/employer current and uniform
-   — 9–12: Minor inconsistencies (old employer not marked past, slight name variant, handle abbreviations)
-   — 4–8: Significant inconsistencies (wrong employer, missing NMLS, abbreviated names, duplicate profiles)
-   — 0–3: Major conflicts (wrong name, wrong company, multiple conflicting profiles)
+CONFLICTS - FORMAT RULES:
+- Only list conflicts found on the known profiles
+- Format each as a plain string: "Main conflict N: [Type] - [Platform] shows '[wrong value]' but canonical [field] is '[correct value]'"
 
-5. aiSearchReadiness (15 pts max)
-   — 13–15: Structured data likely present, authorship signals, consistent entity mentions, FAQ/Q&A content, topical authority signals
-   — 9–12: Basic entity consistency but no authorship or Q&A content; AI would find them but not deeply
-   — 4–8: Fragmented entity signals, AI tools would struggle to confidently surface this advisor
-   — 0–3: Essentially no AI-readable signals; would not appear in AI-powered answers for any query
+Return ONLY raw JSON - no markdown, no code fences, no explanation. All fields required:
 
----
-
-ACTION ITEM QUALITY STANDARDS:
-Each action item must be:
-- Specific and immediately actionable (not vague like "improve your LinkedIn")
-- Tied to a concrete outcome (e.g., "improves NAP consistency score", "makes you eligible for AI answer boxes")
-- Platform-specific with the exact URL when applicable
-- Ranked by highest impact first
-- Include the exact text/copy to use when relevant (e.g., "Update your LinkedIn headline to: 'Mortgage Advisor at NEO Home Loans | NMLS #XXXXX | Serving [city] and [region]'")
-
-Generate at least 8 and up to 12 action items covering all platforms and issue types found.
-
----
-
-CONFLICT DETECTION:
-Identify all cases where the advisor's canonical NAP (from the form data) likely differs from what appears on their platforms. Common mortgage advisor issues:
-- Previous employer still showing as current position on LinkedIn
-- Facebook page name using abbreviated version of company name ("NEO Mtg" vs "NEO Home Loans")
-- Instagram handle using personal name without professional identifiers
-- GBP showing city/state only without full street address (hurts local search)
-- NMLS number missing from one or more platforms
-- Phone number format inconsistency (555-123-4567 vs (555) 123-4567)
-
----
-
-SOCIAL PLATFORM STATUS:
-For each provided channel, assess:
-- OK: Profile exists, NAP likely correct, actively used
-- ISSUE: Profile exists but has a specific correctable problem
-- REMOVE: Duplicate, abandoned, or harmful profile that should be deleted
-- MISSING: A platform that should exist but has no URL provided (and is important for this advisor's niche)
-
-Always assess ALL of these platforms regardless of whether a URL was provided:
-Google Business Profile, LinkedIn, Personal Website/NEO Advisor Site, Facebook, Instagram, Zillow, Yelp, YouTube, Twitter/X, TikTok
-
----
-
-QUERY VISIBILITY MAP:
-Generate at least 6 queries (3 branded, 2 non-branded, 1+ missed opportunity):
-- branded: "[Advisor name] mortgage", "[Advisor name] NMLS [number]", "[Advisor name] [city]"
-- non_branded: "[niche] mortgage advisor [city]", "best [loan type] lender [service area]"
-- missed: queries the advisor SHOULD be winning but almost certainly isn't based on profile analysis
-
----
-
-AI SEARCH READINESS SPECIFICS:
-Evaluate how likely this advisor is to appear when someone asks an AI assistant:
-"Who is the best [physician/CRNA/entrepreneur] mortgage advisor in [city]?"
-"What mortgage advisors in [city] specialize in [niche]?"
-"[Advisor name] — are they a good mortgage advisor?"
-
-An advisor scores well here if they have:
-- Consistent name+employer+NMLS across 5+ platforms (entity disambiguation)
-- At least one piece of long-form content (blog post, interview, video transcript)
-- FAQ-style content on their website
-- Reviews that mention their name + specialty + location in review text
-- Schema markup (JSON-LD) on their advisor site
-
----
-
-DISCOVERY QUERIES:
-Generate 6–10 specific search queries a homebuyer would type into Google or an AI assistant to find this advisor or someone like them. Make these highly local and niche-specific based on the advisor's profile.
-
-Return ONLY valid JSON (no markdown, no code fences, no explanation outside the JSON object).`
-
-  const userPrompt = `ADVISOR PROFILE TO AUDIT:
-
-${napBlock}
-
-KNOWN ONLINE CHANNELS:
-${channelList}
-
-Perform a comprehensive AI Visibility Audit following the scoring rubric and standards in your system instructions. Be thorough, specific, and actionable. The advisor and their marketing team will act directly on your output, so every action item must be precise enough to implement today. Keep field values concise — notes should be 1-2 sentences, action text should be a single clear instruction. Do not add filler phrases or repeat context already visible in other fields.
-
-Return this exact JSON structure (all fields required, no markdown fences):
 {
+  "canonicalEntityStatement": "<1-2 sentences. Full canonical identity of this advisor as it should appear everywhere.>",
   "extractedNap": {
     "name": "",
+    "teamName": "",
+    "title": "",
+    "address": "",
     "phone": "",
     "email": "",
-    "nmls": "",
-    "address": "",
-    "city": "",
-    "state": "",
-    "zip": "",
+    "category": "",
     "serviceArea": "",
-    "title": "",
-    "businessName": "NEO Home Loans"
+    "primaryUrl": "",
+    "primaryUrlNote": "",
+    "nmlsNumber": ""
   },
-  "canonicalBlock": "Full canonical NAP block as a single formatted string showing exactly how name/title/company/NMLS/address/phone should appear consistently everywhere.",
+  "canonicalBlock": "<Exact multi-line NAP block to copy-paste everywhere. Include name, title, company, NMLS, address, phone, email, website. Separate lines with \\n.>",
+  "canonicalPublicDisplay": "<One-line display: 'Name | Title | NEO Home Loans | NMLS #XXXXX | City, State'>",
+  "positioningStatement": "<1-2 sentences. What this advisor should say everywhere about who they serve and what makes them different.>",
+  "bestDifferenceLanguage": "<1 sentence. The single most differentiating thing about this advisor.>",
   "score": 0,
   "scoreBreakdown": {
-    "listingsHealth":    { "score": 0, "max": 30, "notes": "Specific explanation of what's present, what's missing, and why this score was assigned." },
-    "reviews":           { "score": 0, "max": 20, "notes": "Estimated review volume, recency, and gaps. What would move this score up." },
-    "websiteLocal":      { "score": 0, "max": 20, "notes": "Website/NEO site assessment and local SEO signals." },
-    "brandConsistency":  { "score": 0, "max": 15, "notes": "Specific consistency issues found or likely present." },
-    "aiSearchReadiness": { "score": 0, "max": 15, "notes": "Why AI tools would or would not surface this advisor, what's missing." }
+    "listingsHealth":        { "score": 0, "max": 30, "notes": "<2-3 specific sentences about what is present, what is missing, and why this score.>" },
+    "reviews":               { "score": 0, "max": 20, "notes": "<2-3 sentences about estimated volume, recency, and gaps.>" },
+    "websiteLocalRelevance": { "score": 0, "max": 20, "notes": "<2-3 sentences about website/advisor site assessment and local SEO signals.>" },
+    "brandConsistency":      { "score": 0, "max": 15, "notes": "<2-3 sentences about specific consistency issues found or likely present.>" },
+    "aiSearchReadiness":     { "score": 0, "max": 15, "notes": "<2-3 sentences about why AI tools would or would not surface this advisor.>" }
   },
   "actionItems": [
     {
-      "rank": 1,
-      "platform": "Google Business Profile",
-      "action": "Full specific action with exact copy or steps to take.",
-      "url": "https://...",
-      "impact": "High"
+      "priority": 1,
+      "platform": "<Platform name>",
+      "action": "<Bold Key Term: 1-2 tight sentences with exact wrong value and correct value.>",
+      "url": "<direct URL to the profile or management page>"
     }
   ],
   "conflicts": [
-    {
-      "field": "employer",
-      "canonical": "NEO Home Loans",
-      "issues": [
-        { "platform": "LinkedIn", "found": "Likely shows previous employer or abbreviated name" }
-      ]
-    }
+    "<Main conflict 1: [Type] - [Platform] shows '[wrong value]' but canonical [field] is '[correct value]'>"
+  ],
+  "competitiveGapAnalysis": {
+    "advantages": ["<Specific thing this advisor does well vs competitors>"],
+    "gaps": ["<Specific area where competitors are currently beating them>"]
+  },
+  "mainAudienceServed": "<1-2 paragraphs. Who this advisor actually serves based on their profile data and stated niche.>",
+  "whoYouAppearToServe": "<1-2 paragraphs. The audience that comes through in their current public profiles - may differ from intended audience.>",
+  "perceivedStrengths": [
+    "<Strength 1 based on review signals, bio content, or positioning>",
+    "<Strength 2>",
+    "<Strength 3>"
   ],
   "socials": [
     {
-      "platform": "google_business",
-      "url": "",
-      "status": "OK",
-      "notes": "Specific assessment of this platform's status and any issues."
+      "platform": "<platform key>",
+      "url": "<full URL>",
+      "status": "<OK|ISSUE|REMOVE|MISSING>",
+      "notes": "<Specific issue if ISSUE/REMOVE/MISSING, empty string if OK.>"
     }
   ],
-  "queryVisibility": [
-    { "query": "", "type": "branded", "assessment": "Detailed assessment of visibility for this specific query." },
-    { "query": "", "type": "non_branded", "assessment": "" },
-    { "query": "", "type": "missed", "assessment": "Why this is a missed opportunity and how to capture it." }
+  "contentThemes": [
+    "<Specific recurring content topic tailored to this advisor's market and audience>",
+    "<5-8 total topics>"
   ],
-  "summary": "3–4 sentence executive summary that names the advisor's biggest wins and biggest gaps, and what the single most impactful thing they could do today is.",
-  "discoveryQueries": [
-    "specific query 1 a buyer would use",
-    "specific query 2",
-    "specific query 3",
-    "specific query 4",
-    "specific query 5",
-    "specific query 6"
-  ]
+  "queryVisibility": {
+    "branded": "<Assessment of branded search visibility - searches by name or NMLS.>",
+    "nonBranded": "<Assessment of non-branded local search - generic category plus city searches.>",
+    "topicClusters": ["<Topic cluster where this advisor already has strength>"],
+    "missedOpportunities": [
+      "Homebuyers: <specific queries this advisor is missing>",
+      "Refinancers: <specific refinance queries being missed>",
+      "Referral partners: <specific partner-facing queries missed>"
+    ],
+    "serviceAreaExpansion": "<Specific cities or areas this advisor could realistically expand into.>"
+  }
 }`
 
-  // Use fetch directly so this works in both Node.js and Edge runtimes.
-  // AbortController gives a clean error at 27s instead of a hard Edge cut at 30s.
-  const abort = new AbortController()
-  const timer = setTimeout(() => abort.abort(), 24_000)
+  const messageContent: Anthropic.Messages.ContentBlockParam[] = []
 
-  let res: Response
+  if (napForm) {
+    if (napForm.mediaType === 'application/pdf') {
+      messageContent.push({
+        type: 'document',
+        source: { type: 'base64', media_type: 'application/pdf', data: napForm.data },
+      } as Anthropic.Messages.ContentBlockParam)
+    } else {
+      messageContent.push({
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: napForm.mediaType as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif',
+          data: napForm.data,
+        },
+      } as Anthropic.Messages.ContentBlockParam)
+    }
+  }
+
+  messageContent.push({ type: 'text', text: prompt })
+
+  // Prefill the assistant turn with `{` to force pure JSON output with no preamble.
+  // claude-sonnet-4-5 supports this; resume from `{` and prepend it back before parsing.
+  const message = await client.messages.create({
+    model: 'claude-sonnet-4-5',
+    max_tokens: 8192,
+    messages: [
+      { role: 'user', content: messageContent },
+      { role: 'assistant', content: [{ type: 'text', text: '{' }] },
+    ],
+  })
+
+  const continuation = message.content[0].type === 'text' ? message.content[0].text : ''
+  let jsonStr = ('{' + continuation).trim()
+
+  const fenceMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/)
+  if (fenceMatch) jsonStr = fenceMatch[1].trim()
+
+  jsonStr = repairJson(jsonStr)
+
   try {
-    res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      signal: abort.signal,
-      headers: {
-        'x-api-key': process.env.ANTHROPIC_API_KEY!,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 3500,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userPrompt }],
-      }),
-    })
-  } finally {
-    clearTimeout(timer)
+    return JSON.parse(jsonStr) as AuditResult
+  } catch (err) {
+    const pos = (err as SyntaxError).message.match(/position (\d+)/)?.[1]
+    const at = pos ? Number(pos) : jsonStr.length
+    console.error(
+      '[visibility-audit] JSON parse failed:',
+      (err as SyntaxError).message,
+      '\n--- context around failure ---\n',
+      jsonStr.slice(Math.max(0, at - 120), at + 120),
+    )
+    throw err
   }
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({})) as { error?: { message?: string } }
-    throw new Error(err.error?.message ?? `Anthropic API error ${res.status}`)
-  }
-
-  const body = await res.json() as { content: { type: string; text: string }[] }
-  let raw = body.content[0].text
-  raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
-  const parsed = JSON.parse(repairJson(raw)) as AuditResult
-  return parsed
 }

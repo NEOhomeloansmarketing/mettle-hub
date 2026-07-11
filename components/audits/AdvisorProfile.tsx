@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type {
   Advisor, AdvisorChannel, VisibilityAudit, AdvisorTask,
-  AuditActionItem, AuditConflict, AuditSocialStatus, AuditQueryVisibility,
+  AuditActionItem, AuditConflict, AuditSocialStatus, AuditQueryVisibility, AuditQueryVisibilityMap,
 } from '@/lib/types'
 import { ADVISOR_PLATFORMS, type AdvisorChannelPlatform } from '@/lib/types'
 import { Icon } from '@/components/ui/Icon'
@@ -71,7 +71,8 @@ function ScoreGauge({ score }: { score: number }) {
   )
 }
 
-function ImpactBadge({ impact }: { impact: 'High' | 'Medium' | 'Low' }) {
+function ImpactBadge({ impact }: { impact?: 'High' | 'Medium' | 'Low' }) {
+  if (!impact) return null
   const map = { High: 'red', Medium: 'yellow', Low: 'gray' }
   return <span className={`impact-badge impact-badge--${map[impact]}`}>{impact}</span>
 }
@@ -369,7 +370,7 @@ export function AdvisorProfile({ advisor: initial }: AdvisorProfileProps) {
       id: makeTaskId(),
       title: item.action,
       completed: false,
-      impact: item.impact,
+      impact: item.impact ?? undefined,
       platform: item.platform,
       url: item.url,
       source: 'audit',
@@ -390,7 +391,7 @@ export function AdvisorProfile({ advisor: initial }: AdvisorProfileProps) {
         id: makeTaskId(),
         title: item.action,
         completed: false,
-        impact: item.impact,
+        impact: item.impact ?? undefined,
         platform: item.platform,
         url: item.url,
         source: 'audit' as const,
@@ -957,8 +958,15 @@ export function AdvisorProfile({ advisor: initial }: AdvisorProfileProps) {
                   <div className="audit-summary__date">
                     Last audit: {new Date(latestAudit.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </div>
-                  {latestAudit.raw_result?.summary && (
-                    <p className="audit-summary__text">{latestAudit.raw_result.summary}</p>
+                  {(latestAudit.raw_result?.positioningStatement ?? latestAudit.raw_result?.summary) && (
+                    <p className="audit-summary__text">
+                      {latestAudit.raw_result?.positioningStatement ?? latestAudit.raw_result?.summary}
+                    </p>
+                  )}
+                  {latestAudit.raw_result?.canonicalPublicDisplay && (
+                    <div className="audit-canonical-display">
+                      {latestAudit.raw_result.canonicalPublicDisplay}
+                    </div>
                   )}
                 </div>
                 <div className="audit-score-actions">
@@ -973,17 +981,28 @@ export function AdvisorProfile({ advisor: initial }: AdvisorProfileProps) {
                 </div>
               </div>
 
+              {latestAudit.raw_result?.canonicalBlock && (
+                <div className="audit-section">
+                  <h3>Canonical NAP Block</h3>
+                  <pre className="canonical-block">{latestAudit.raw_result.canonicalBlock.replace(/\\n/g, '\n')}</pre>
+                  {latestAudit.raw_result.bestDifferenceLanguage && (
+                    <div className="canonical-diff">{latestAudit.raw_result.bestDifferenceLanguage}</div>
+                  )}
+                </div>
+              )}
+
               {latestAudit.score_breakdown && (
                 <div className="audit-section">
                   <h3>Score Breakdown</h3>
                   <div className="score-breakdown">
                     {(Object.entries(latestAudit.score_breakdown) as [string, { score: number; max: number; notes: string }][]).map(([key, val]) => {
                       const labels: Record<string, string> = {
-                        listingsHealth:    'Listings Health',
-                        reviews:           'Reviews',
-                        websiteLocal:      'Website / Local SEO',
-                        brandConsistency:  'Brand Consistency',
-                        aiSearchReadiness: 'AI Search Readiness',
+                        listingsHealth:        'Listings Health',
+                        reviews:               'Reviews',
+                        websiteLocal:          'Website / Local SEO',
+                        websiteLocalRelevance: 'Website / Local SEO',
+                        brandConsistency:      'Brand Consistency',
+                        aiSearchReadiness:     'AI Search Readiness',
                       }
                       const pct = Math.round((val.score / val.max) * 100)
                       const fill = pct >= 70 ? '#22c55e' : pct >= 45 ? '#f59e0b' : '#ef4444'
@@ -1010,18 +1029,23 @@ export function AdvisorProfile({ advisor: initial }: AdvisorProfileProps) {
                   <div className="action-list">
                     {(latestAudit.action_items as AuditActionItem[]).map((item, i) => {
                       const alreadyTask = advisorTasks.some(t => t.title === item.action)
+                      const num = item.priority ?? item.rank ?? (i + 1)
+                      const [boldPart, ...rest] = item.action.split(':')
+                      const restText = rest.length ? ':' + rest.join(':') : ''
                       return (
                         <div key={i} className="action-item">
-                          <span className="action-item__rank">{item.rank}</span>
+                          <span className="action-item__rank">{num}</span>
                           <div className="action-item__body">
                             <div className="action-item__top">
                               <span className="action-item__platform">{item.platform}</span>
-                              <ImpactBadge impact={item.impact} />
+                              {item.impact && <ImpactBadge impact={item.impact} />}
                             </div>
-                            <div className="action-item__action">{item.action}</div>
+                            <div className="action-item__action">
+                              {restText ? <><strong>{boldPart}</strong>{restText}</> : item.action}
+                            </div>
                             {item.url && (
                               <a href={item.url} target="_blank" rel="noopener noreferrer" className="action-item__url">
-                                {item.url}
+                                View Profile →
                               </a>
                             )}
                           </div>
@@ -1044,18 +1068,26 @@ export function AdvisorProfile({ advisor: initial }: AdvisorProfileProps) {
                 <div className="audit-section">
                   <h3>NAP Conflicts</h3>
                   <div className="conflicts-list">
-                    {(latestAudit.conflicts as AuditConflict[]).map((c, i) => (
-                      <div key={i} className="conflict-card">
-                        <div className="conflict-card__field">{c.field}</div>
-                        <div className="conflict-card__canonical">Canonical: <strong>{c.canonical}</strong></div>
-                        {c.issues.map((issue, j) => (
-                          <div key={j} className="conflict-card__issue">
+                    {typeof latestAudit.conflicts[0] === 'string'
+                      ? (latestAudit.conflicts as string[]).map((c, i) => (
+                          <div key={i} className="conflict-card conflict-card--string">
                             <Icon name="alert" size={12} />
-                            <span>{issue.platform}: <em>{issue.found}</em></span>
+                            <span>{c}</span>
                           </div>
-                        ))}
-                      </div>
-                    ))}
+                        ))
+                      : (latestAudit.conflicts as AuditConflict[]).map((c, i) => (
+                          <div key={i} className="conflict-card">
+                            <div className="conflict-card__field">{c.field}</div>
+                            <div className="conflict-card__canonical">Canonical: <strong>{c.canonical}</strong></div>
+                            {c.issues.map((issue, j) => (
+                              <div key={j} className="conflict-card__issue">
+                                <Icon name="alert" size={12} />
+                                <span>{issue.platform}: <em>{issue.found}</em></span>
+                              </div>
+                            ))}
+                          </div>
+                        ))
+                    }
                   </div>
                 </div>
               )}
@@ -1080,17 +1112,122 @@ export function AdvisorProfile({ advisor: initial }: AdvisorProfileProps) {
                 </div>
               )}
 
-              {latestAudit.query_visibility && latestAudit.query_visibility.length > 0 && (
+              {latestAudit.query_visibility && (
                 <div className="audit-section">
                   <h3>Search Visibility</h3>
-                  <div className="query-list">
-                    {(latestAudit.query_visibility as AuditQueryVisibility[]).map((q, i) => (
-                      <div key={i} className="query-row">
-                        <div className="query-row__query">&ldquo;{q.query}&rdquo;</div>
-                        <span className={`query-type query-type--${q.type}`}>{q.type.replace('_', ' ')}</span>
-                        <div className="query-row__assessment">{q.assessment}</div>
-                      </div>
+                  {Array.isArray(latestAudit.query_visibility) ? (
+                    // Legacy array format
+                    <div className="query-list">
+                      {(latestAudit.query_visibility as AuditQueryVisibility[]).map((q, i) => (
+                        <div key={i} className="query-row">
+                          <div className="query-row__query">&ldquo;{q.query}&rdquo;</div>
+                          <span className={`query-type query-type--${q.type}`}>{q.type.replace('_', ' ')}</span>
+                          <div className="query-row__assessment">{q.assessment}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    // New object format
+                    (() => {
+                      const qv = latestAudit.query_visibility as AuditQueryVisibilityMap
+                      return (
+                        <div className="query-map">
+                          {qv.branded && (
+                            <div className="query-map__row">
+                              <span className="query-type query-type--branded">Branded</span>
+                              <p>{qv.branded}</p>
+                            </div>
+                          )}
+                          {qv.nonBranded && (
+                            <div className="query-map__row">
+                              <span className="query-type query-type--non_branded">Non-Branded</span>
+                              <p>{qv.nonBranded}</p>
+                            </div>
+                          )}
+                          {qv.missedOpportunities?.length > 0 && (
+                            <div className="query-map__row">
+                              <span className="query-type query-type--missed">Missed</span>
+                              <ul className="query-map__list">
+                                {qv.missedOpportunities.map((m, i) => <li key={i}>{m}</li>)}
+                              </ul>
+                            </div>
+                          )}
+                          {qv.topicClusters?.length > 0 && (
+                            <div className="query-map__row">
+                              <span className="query-type query-type--branded">Topic Clusters</span>
+                              <ul className="query-map__list">
+                                {qv.topicClusters.map((t, i) => <li key={i}>{t}</li>)}
+                              </ul>
+                            </div>
+                          )}
+                          {qv.serviceAreaExpansion && (
+                            <div className="query-map__row">
+                              <span className="query-type query-type--non_branded">Expansion</span>
+                              <p>{qv.serviceAreaExpansion}</p>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()
+                  )}
+                </div>
+              )}
+
+              {latestAudit.raw_result?.contentThemes && latestAudit.raw_result.contentThemes.length > 0 && (
+                <div className="audit-section">
+                  <h3>Content Themes</h3>
+                  <div className="content-themes">
+                    {latestAudit.raw_result.contentThemes.map((t, i) => (
+                      <span key={i} className="content-theme-chip">{t}</span>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {latestAudit.raw_result?.mainAudienceServed && (
+                <div className="audit-section">
+                  <h3>Audience Analysis</h3>
+                  <div className="audience-block">
+                    <div className="audience-block__label">Who They Actually Serve</div>
+                    <p>{latestAudit.raw_result.mainAudienceServed}</p>
+                    {latestAudit.raw_result.whoYouAppearToServe && (
+                      <>
+                        <div className="audience-block__label" style={{ marginTop: 12 }}>How You Currently Appear</div>
+                        <p>{latestAudit.raw_result.whoYouAppearToServe}</p>
+                      </>
+                    )}
+                  </div>
+                  {latestAudit.raw_result.perceivedStrengths && latestAudit.raw_result.perceivedStrengths.length > 0 && (
+                    <div className="perceived-strengths">
+                      <div className="audience-block__label" style={{ marginTop: 12 }}>Perceived Strengths</div>
+                      <ul>
+                        {latestAudit.raw_result.perceivedStrengths.map((s, i) => <li key={i}>{s}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {latestAudit.raw_result?.competitiveGapAnalysis && (
+                <div className="audit-section">
+                  <h3>Competitive Analysis</h3>
+                  <div className="competitive-grid">
+                    {latestAudit.raw_result.competitiveGapAnalysis.advantages?.length > 0 && (
+                      <div className="competitive-col competitive-col--win">
+                        <div className="competitive-col__label">Advantages</div>
+                        <ul>
+                          {latestAudit.raw_result.competitiveGapAnalysis.advantages.map((a, i) => <li key={i}>{a}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    {latestAudit.raw_result.competitiveGapAnalysis.gaps?.length > 0 && (
+                      <div className="competitive-col competitive-col--gap">
+                        <div className="competitive-col__label">Gaps to Close</div>
+                        <ul>
+                          {latestAudit.raw_result.competitiveGapAnalysis.gaps.map((g, i) => <li key={i}>{g}</li>)}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

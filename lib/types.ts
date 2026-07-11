@@ -311,28 +311,30 @@ export interface VisibilityAudit {
   extracted_nap: Record<string, string> | null
   score_breakdown: AuditScoreBreakdown | null
   action_items: AuditActionItem[] | null
-  conflicts: AuditConflict[] | null
+  conflicts: AuditConflict[] | string[] | null
   socials: AuditSocialStatus[] | null
-  query_visibility: AuditQueryVisibility[] | null
+  query_visibility: AuditQueryVisibility[] | AuditQueryVisibilityMap | null
   raw_result: AuditResult | null
   created_at: string
   completed_at: string | null
 }
 
 export interface AuditScoreBreakdown {
-  listingsHealth:    { score: number; max: number; notes: string }
-  reviews:           { score: number; max: number; notes: string }
-  websiteLocal:      { score: number; max: number; notes: string }
-  brandConsistency:  { score: number; max: number; notes: string }
-  aiSearchReadiness: { score: number; max: number; notes: string }
+  listingsHealth:          { score: number; max: number; notes: string }
+  reviews:                 { score: number; max: number; notes: string }
+  websiteLocal?:           { score: number; max: number; notes: string }  // legacy key
+  websiteLocalRelevance?:  { score: number; max: number; notes: string }  // new key
+  brandConsistency:        { score: number; max: number; notes: string }
+  aiSearchReadiness:       { score: number; max: number; notes: string }
 }
 
 export interface AuditActionItem {
-  rank: number
+  rank?: number      // legacy
+  priority?: number  // new
   platform: string
   action: string
   url?: string
-  impact: 'High' | 'Medium' | 'Low'
+  impact?: 'High' | 'Medium' | 'Low'  // legacy only
 }
 
 export interface AuditConflict {
@@ -348,24 +350,50 @@ export interface AuditSocialStatus {
   notes: string
 }
 
+// Legacy array format
 export interface AuditQueryVisibility {
   query: string
   type: 'branded' | 'non_branded' | 'missed'
   assessment: string
 }
 
+// New object format
+export interface AuditQueryVisibilityMap {
+  branded: string
+  nonBranded: string
+  topicClusters: string[]
+  missedOpportunities: string[]
+  serviceAreaExpansion: string
+}
+
 export interface AuditResult {
   extractedNap: Record<string, string>
-  canonicalBlock: string
+  canonicalBlock?: string
   score: number
   scoreBreakdown: AuditScoreBreakdown
   actionItems: AuditActionItem[]
-  conflicts: AuditConflict[]
+  conflicts: AuditConflict[] | string[]
   socials: AuditSocialStatus[]
-  queryVisibility: AuditQueryVisibility[]
-  summary: string
-  discoveryQueries: string[]
+  queryVisibility: AuditQueryVisibility[] | AuditQueryVisibilityMap
+  // Legacy fields
+  summary?: string
+  discoveryQueries?: string[]
+  // New fields
+  canonicalEntityStatement?: string
+  canonicalPublicDisplay?: string
+  positioningStatement?: string
+  bestDifferenceLanguage?: string
+  mainAudienceServed?: string
+  whoYouAppearToServe?: string
+  perceivedStrengths?: string[]
+  contentThemes?: string[]
+  competitiveGapAnalysis?: {
+    advantages: string[]
+    gaps: string[]
+  }
 }
+
+export type AuditConflictItem = AuditConflict | string
 
 export const CHANNEL_BRIEFS: Record<string, { audience: string; voice: string; cta: string }> = {
   CRNA: {

@@ -1,4 +1,4 @@
-import type { Advisor, VisibilityAudit, AuditActionItem, AuditConflict, AuditSocialStatus, AuditQueryVisibility } from './types'
+import type { Advisor, VisibilityAudit, AuditActionItem, AuditConflict, AuditSocialStatus, AuditQueryVisibility, AuditQueryVisibilityMap } from './types'
 
 function scoreColor(score: number): string {
   if (score >= 70) return '#16a34a'
@@ -36,9 +36,9 @@ export function generateAuditHTML(advisor: Advisor, audit: VisibilityAudit): str
   const color = scoreColor(score)
   const date = new Date(audit.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
   const actionItems = (audit.action_items ?? []) as AuditActionItem[]
-  const conflicts = (audit.conflicts ?? []) as AuditConflict[]
+  const rawConflicts = audit.conflicts ?? []
   const socials = (audit.socials ?? []) as AuditSocialStatus[]
-  const queries = (audit.query_visibility ?? []) as AuditQueryVisibility[]
+  const rawQV = audit.query_visibility
   const breakdown = audit.score_breakdown
   const raw = audit.raw_result
 
@@ -56,39 +56,56 @@ export function generateAuditHTML(advisor: Advisor, audit: VisibilityAudit): str
   const actionItemsHTML = actionItems.length ? `
     <div class="section">
       <div class="section-header">Priority Action Plan</div>
-      <div class="sub-label">Ranked by impact — complete in order</div>
-      ${actionItems.map((item, i) => `
-        <div class="action-item">
-          <div class="action-rank">${i + 1}</div>
-          <div class="action-body">
-            <div class="action-top">
-              <span class="action-platform">${item.platform}</span>
-              <span class="impact-badge" style="background:${impactColor(item.impact)}1a;color:${impactColor(item.impact)};border:1px solid ${impactColor(item.impact)}40">
-                ${item.impact} Impact
-              </span>
+      <div class="sub-label">Ranked by priority — complete in order</div>
+      ${actionItems.map((item, i) => {
+        const num = item.priority ?? item.rank ?? (i + 1)
+        const impactHtml = item.impact ? `
+          <span class="impact-badge" style="background:${impactColor(item.impact)}1a;color:${impactColor(item.impact)};border:1px solid ${impactColor(item.impact)}40">
+            ${item.impact} Impact
+          </span>` : ''
+        return `
+          <div class="action-item">
+            <div class="action-rank">${num}</div>
+            <div class="action-body">
+              <div class="action-top">
+                <span class="action-platform">${item.platform}</span>
+                ${impactHtml}
+              </div>
+              <div class="action-text">${item.action}</div>
+              ${item.url ? `<a class="action-url" href="${item.url}">${item.url}</a>` : ''}
             </div>
-            <div class="action-text">${item.action}</div>
-            ${item.url ? `<a class="action-url" href="${item.url}">${item.url}</a>` : ''}
-          </div>
-        </div>
-      `).join('')}
+          </div>`
+      }).join('')}
     </div>
   ` : ''
 
-  const conflictsHTML = conflicts.length ? `
-    <div class="section">
-      <div class="section-header">Core Identity Conflicts</div>
-      ${conflicts.map(c => `
-        <div class="conflict-card">
-          <div class="conflict-field">${c.field}</div>
-          <div class="conflict-canonical">Canonical: <strong>${c.canonical}</strong></div>
-          ${c.issues.map(issue => `
-            <div class="conflict-issue">⚠ ${issue.platform}: <em>${issue.found}</em></div>
+  const conflictsHTML = rawConflicts.length ? (() => {
+    const isStringConflicts = typeof rawConflicts[0] === 'string'
+    if (isStringConflicts) {
+      return `
+        <div class="section">
+          <div class="section-header">Core Identity Conflicts</div>
+          ${(rawConflicts as string[]).map(c => `
+            <div class="conflict-card">
+              <div class="conflict-issue">⚠ ${c}</div>
+            </div>
           `).join('')}
-        </div>
-      `).join('')}
-    </div>
-  ` : ''
+        </div>`
+    }
+    return `
+      <div class="section">
+        <div class="section-header">Core Identity Conflicts</div>
+        ${(rawConflicts as AuditConflict[]).map(c => `
+          <div class="conflict-card">
+            <div class="conflict-field">${c.field}</div>
+            <div class="conflict-canonical">Canonical: <strong>${c.canonical}</strong></div>
+            ${c.issues.map(issue => `
+              <div class="conflict-issue">⚠ ${issue.platform}: <em>${issue.found}</em></div>
+            `).join('')}
+          </div>
+        `).join('')}
+      </div>`
+  })() : ''
 
   const socialsHTML = socials.length ? `
     <div class="section">
@@ -117,11 +134,12 @@ export function generateAuditHTML(advisor: Advisor, audit: VisibilityAudit): str
       <div class="section-header">Visibility Score</div>
       ${Object.entries(breakdown).map(([key, val]) => {
         const labels: Record<string, string> = {
-          listingsHealth:    '1) Listings Health',
-          reviews:           '2) Reviews & Reputation',
-          websiteLocal:      '3) Website Local Relevance',
-          brandConsistency:  '4) Brand & Entity Consistency',
-          aiSearchReadiness: '5) AI Search Readiness',
+          listingsHealth:        '1) Listings Health',
+          reviews:               '2) Reviews & Reputation',
+          websiteLocal:          '3) Website Local Relevance',
+          websiteLocalRelevance: '3) Website Local Relevance',
+          brandConsistency:      '4) Brand & Entity Consistency',
+          aiSearchReadiness:     '5) AI Search Readiness',
         }
         return `
           <div class="score-row">
@@ -133,23 +151,61 @@ export function generateAuditHTML(advisor: Advisor, audit: VisibilityAudit): str
     </div>
   ` : ''
 
-  const queriesHTML = queries.length ? `
-    <div class="section">
-      <div class="section-header">Query Visibility Map</div>
-      ${queries.map(q => `
-        <div class="query-row">
-          <span class="query-type ${q.type}">${q.type.replace('_', ' ')}</span>
-          <span class="query-text">&ldquo;${q.query}&rdquo;</span>
-          <div class="query-assessment">${q.assessment}</div>
-        </div>
-      `).join('')}
-    </div>
-  ` : ''
+  const queriesHTML = (() => {
+    if (!rawQV) return ''
+    // New object format
+    if (!Array.isArray(rawQV)) {
+      const qv = rawQV as AuditQueryVisibilityMap
+      const missed = (qv.missedOpportunities ?? []).map(m => `<li>${m}</li>`).join('')
+      const clusters = (qv.topicClusters ?? []).map(t => `<li>${t}</li>`).join('')
+      return `
+        <div class="section">
+          <div class="section-header">Query Visibility</div>
+          <div class="query-row">
+            <span class="query-type branded">Branded</span>
+            <div class="query-assessment">${qv.branded ?? ''}</div>
+          </div>
+          <div class="query-row">
+            <span class="query-type non_branded">Non-Branded</span>
+            <div class="query-assessment">${qv.nonBranded ?? ''}</div>
+          </div>
+          ${missed ? `<div class="query-row"><span class="query-type missed">Missed</span><ul style="font-size:12px;margin:4px 0 0 16px;color:#475569">${missed}</ul></div>` : ''}
+          ${clusters ? `<div class="query-row"><span class="query-type branded">Topic Clusters</span><ul style="font-size:12px;margin:4px 0 0 16px;color:#475569">${clusters}</ul></div>` : ''}
+          ${qv.serviceAreaExpansion ? `<div class="query-row"><span class="query-type non_branded">Expansion</span><div class="query-assessment">${qv.serviceAreaExpansion}</div></div>` : ''}
+        </div>`
+    }
+    // Legacy array format
+    const queries = rawQV as AuditQueryVisibility[]
+    return queries.length ? `
+      <div class="section">
+        <div class="section-header">Query Visibility Map</div>
+        ${queries.map(q => `
+          <div class="query-row">
+            <span class="query-type ${q.type}">${q.type.replace('_', ' ')}</span>
+            <span class="query-text">&ldquo;${q.query}&rdquo;</span>
+            <div class="query-assessment">${q.assessment}</div>
+          </div>
+        `).join('')}
+      </div>` : ''
+  })()
 
-  const contentThemesHTML = raw?.discoveryQueries?.length ? `
+  const contentThemesHTML = raw?.contentThemes?.length ? `
+    <div class="section">
+      <div class="section-header">Content Themes</div>
+      ${raw.contentThemes.map((t, i) => `<div class="theme-item"><span class="theme-num">${i + 1}</span> ${t}</div>`).join('')}
+    </div>
+  ` : raw?.discoveryQueries?.length ? `
     <div class="section">
       <div class="section-header">Recommended Discovery Queries</div>
       ${raw.discoveryQueries.map((q, i) => `<div class="theme-item"><span class="theme-num">${i + 1}</span> ${q}</div>`).join('')}
+    </div>
+  ` : ''
+
+  const canonicalHTML = raw?.canonicalBlock ? `
+    <div class="section">
+      <div class="section-header">Canonical NAP Block</div>
+      <pre style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:14px 18px;font-size:13px;line-height:1.8;white-space:pre-wrap;font-family:monospace">${raw.canonicalBlock}</pre>
+      ${raw.positioningStatement ? `<div style="margin-top:12px;font-size:13px;color:#334155;font-style:italic">${raw.positioningStatement}</div>` : ''}
     </div>
   ` : ''
 
@@ -241,6 +297,7 @@ export function generateAuditHTML(advisor: Advisor, audit: VisibilityAudit): str
   ${napLines ? `<div class="nap-block">${napLines}</div>` : ''}
 </div>
 
+${canonicalHTML}
 ${actionItemsHTML}
 ${conflictsHTML}
 ${breakdownHTML}
