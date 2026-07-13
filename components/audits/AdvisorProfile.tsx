@@ -958,6 +958,21 @@ export function AdvisorProfile({ advisor: initial }: AdvisorProfileProps) {
                   <div className="audit-summary__date">
                     Last audit: {new Date(latestAudit.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </div>
+                  {(() => {
+                    const prev = advisor.visibility_audits[1]
+                    if (!prev || prev.score == null || latestAudit.score == null) return null
+                    const delta = latestAudit.score - prev.score
+                    const up = delta > 0
+                    const same = delta === 0
+                    return (
+                      <div className={`audit-score-delta${up ? ' audit-score-delta--up' : same ? ' audit-score-delta--same' : ' audit-score-delta--down'}`}>
+                        {same ? '—' : up ? `+${delta}` : delta} pts &nbsp;
+                        <span className="audit-score-delta__prev">
+                          {up ? '↑' : same ? '' : '↓'} vs {prev.score}/100 on {new Date(prev.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </span>
+                      </div>
+                    )
+                  })()}
                   {(latestAudit.raw_result?.positioningStatement ?? latestAudit.raw_result?.summary) && (
                     <p className="audit-summary__text">
                       {latestAudit.raw_result?.positioningStatement ?? latestAudit.raw_result?.summary}
