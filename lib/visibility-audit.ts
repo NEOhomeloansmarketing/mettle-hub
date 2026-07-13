@@ -117,6 +117,26 @@ CONFLICTS - FORMAT RULES:
 - Only list conflicts found on the known profiles
 - Format each as a plain string: "Main conflict N: [Type] - [Platform] shows '[wrong value]' but canonical [field] is '[correct value]'"
 
+UNDISCOVERED CHANNEL DETECTION:
+Based on this advisor's name, NMLS number, location, niche, and the platforms NOT already in KNOWN ONLINE PROFILES, identify profiles that LIKELY ALREADY EXIST that they haven't claimed, forgot to submit, or don't know about.
+
+Do NOT suggest creating new accounts. ONLY identify profiles that are likely to pre-exist based on:
+1. Industry-mandatory registrations - NMLS Consumer Access creates a public page for ALL licensed MLOs automatically (nmls consumer access). HIGH confidence for everyone.
+2. Auto-created profiles - Zillow, Realtor.com, Google sometimes auto-create profiles from NMLS registry data.
+3. Orphaned old-employer pages - LinkedIn history or bio hints at prior employer whose website still has their profile page.
+4. Niche directories - Medical professional niches have specific directories (doctor-facing, healthcare finance forums). Entrepreneur niche has business lending directories.
+5. Local market directories - BBB, local chamber of commerce, city-specific review sites common in their stated service area.
+6. Name-searchable platforms - If the advisor has a distinctive name, profiles created by third parties (reviewers, referral networks) may exist.
+
+For each discovered channel:
+- searchUrl: a direct search URL or platform search page to verify the profile (e.g. Google search for their name + platform)
+- likelyUrl: predicted URL if the platform has a predictable naming pattern (e.g. nmls consumer access uses the NMLS number), or null if unpredictable
+- confidence: "High" = auto-created or industry standard, "Medium" = common for their niche/market, "Low" = possible but variable
+- reason: one specific sentence about why this advisor in particular likely has this profile
+- action: "Claim" (exists, not yet actively managed), "Update" (may be stale/wrong info), "Remove" (likely shows old employer), "Verify" (check if it exists first)
+
+Return 4-8 items. Skip any platform already listed in KNOWN ONLINE PROFILES.
+
 Return ONLY raw JSON - no markdown, no code fences, no explanation. All fields required:
 
 {
@@ -190,7 +210,17 @@ Return ONLY raw JSON - no markdown, no code fences, no explanation. All fields r
       "Referral partners: <specific partner-facing queries missed>"
     ],
     "serviceAreaExpansion": "<Specific cities or areas this advisor could realistically expand into.>"
-  }
+  },
+  "discoveredChannels": [
+    {
+      "platform": "<Platform name>",
+      "searchUrl": "<URL to search for or verify the profile - e.g. a Google search URL or the platform's search page>",
+      "likelyUrl": "<Predicted profile URL based on known naming patterns, or null if unpredictable>",
+      "confidence": "<High|Medium|Low>",
+      "reason": "<Specific sentence about why this profile likely already exists for this advisor>",
+      "action": "<Claim|Update|Remove|Verify>"
+    }
+  ]
 }`
 
   const messageContent: Anthropic.Messages.ContentBlockParam[] = []

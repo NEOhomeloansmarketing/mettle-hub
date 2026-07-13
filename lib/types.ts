@@ -366,6 +366,15 @@ export interface AuditQueryVisibilityMap {
   serviceAreaExpansion: string
 }
 
+export interface DiscoveredChannel {
+  platform: string
+  searchUrl?: string
+  likelyUrl?: string | null
+  confidence: 'High' | 'Medium' | 'Low'
+  reason: string
+  action: 'Claim' | 'Update' | 'Remove' | 'Verify'
+}
+
 export interface AuditResult {
   extractedNap: Record<string, string>
   canonicalBlock?: string
@@ -391,6 +400,7 @@ export interface AuditResult {
     advantages: string[]
     gaps: string[]
   }
+  discoveredChannels?: DiscoveredChannel[]
 }
 
 export type AuditConflictItem = AuditConflict | string

@@ -1232,6 +1232,41 @@ export function AdvisorProfile({ advisor: initial }: AdvisorProfileProps) {
                 </div>
               )}
 
+              {latestAudit.raw_result?.discoveredChannels && latestAudit.raw_result.discoveredChannels.length > 0 && (
+                <div className="audit-section">
+                  <h3>Possible Undiscovered Channels</h3>
+                  <p className="audit-section__subtext">Profiles that likely exist but weren&apos;t submitted. Verify each one and claim or update as needed.</p>
+                  <div className="discovered-channels">
+                    {latestAudit.raw_result.discoveredChannels.map((ch, i) => (
+                      <div key={i} className="discovered-channel">
+                        <div className="discovered-channel__top">
+                          <span className="discovered-channel__platform">{ch.platform}</span>
+                          <span className={`discovered-channel__confidence discovered-channel__confidence--${ch.confidence.toLowerCase()}`}>
+                            {ch.confidence} confidence
+                          </span>
+                          <span className={`discovered-channel__action-badge discovered-channel__action-badge--${ch.action.toLowerCase()}`}>
+                            {ch.action}
+                          </span>
+                        </div>
+                        <p className="discovered-channel__reason">{ch.reason}</p>
+                        <div className="discovered-channel__links">
+                          {ch.likelyUrl && (
+                            <a href={ch.likelyUrl} target="_blank" rel="noopener noreferrer" className="discovered-channel__link">
+                              View Likely Profile →
+                            </a>
+                          )}
+                          {ch.searchUrl && (
+                            <a href={ch.searchUrl} target="_blank" rel="noopener noreferrer" className="discovered-channel__link discovered-channel__link--search">
+                              Search to Verify →
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {latestAudit.raw_result?.discoveryQueries && latestAudit.raw_result.discoveryQueries.length > 0 && (
                 <div className="audit-section">
                   <h3>Recommended Discovery Queries</h3>

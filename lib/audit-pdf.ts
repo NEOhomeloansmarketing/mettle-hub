@@ -201,6 +201,39 @@ export function generateAuditHTML(advisor: Advisor, audit: VisibilityAudit): str
     </div>
   ` : ''
 
+  function confidenceBg(confidence: string): string {
+    if (confidence === 'High')   return 'background:#dcfce7;color:#166534'
+    if (confidence === 'Medium') return 'background:#fef9c3;color:#854d0e'
+    return 'background:#f1f5f9;color:#475569'
+  }
+  function actionBg(action: string): string {
+    if (action === 'Claim')  return 'background:#dbeafe;color:#1e40af'
+    if (action === 'Update') return 'background:#fef3c7;color:#92400e'
+    if (action === 'Remove') return 'background:#fee2e2;color:#991b1b'
+    return 'background:#f1f5f9;color:#475569'
+  }
+
+  const discoveredChannelsHTML = raw?.discoveredChannels?.length ? `
+    <div class="section">
+      <div class="section-header">Possible Undiscovered Channels</div>
+      <div class="sub-label">Profiles that likely exist but were not submitted - verify and claim or update as needed.</div>
+      ${raw.discoveredChannels.map(ch => `
+        <div style="border:1px solid #fde68a;background:#fffbeb;border-radius:6px;padding:12px 16px;margin-bottom:10px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+            <span style="font-size:13px;font-weight:700;color:#1e293b">${ch.platform}</span>
+            <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;${confidenceBg(ch.confidence)}">${ch.confidence} confidence</span>
+            <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:auto;${actionBg(ch.action)}">${ch.action}</span>
+          </div>
+          <div style="font-size:12px;color:#475569;line-height:1.5;margin-bottom:8px">${ch.reason}</div>
+          <div style="display:flex;gap:14px;flex-wrap:wrap">
+            ${ch.likelyUrl ? `<a href="${ch.likelyUrl}" style="font-size:11px;color:#0369a1">View Likely Profile →</a>` : ''}
+            ${ch.searchUrl ? `<a href="${ch.searchUrl}" style="font-size:11px;color:#64748b">Search to Verify →</a>` : ''}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  ` : ''
+
   const canonicalHTML = raw?.canonicalBlock ? `
     <div class="section">
       <div class="section-header">Canonical NAP Block</div>
@@ -304,6 +337,7 @@ ${breakdownHTML}
 ${socialsHTML}
 ${queriesHTML}
 ${contentThemesHTML}
+${discoveredChannelsHTML}
 
 <div class="footer">
   NEO Home Loans AI Visibility Audit &nbsp;|&nbsp; ${advisor.name} &nbsp;|&nbsp; Generated ${date} &nbsp;|&nbsp; Powered by Claude AI
