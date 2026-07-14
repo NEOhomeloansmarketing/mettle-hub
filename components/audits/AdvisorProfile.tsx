@@ -424,13 +424,32 @@ export function AdvisorProfile({ advisor: initial }: AdvisorProfileProps) {
 
   const exportPDF = useCallback(() => {
     if (!latestAudit) return
-    const html = generateAuditHTML(advisor, latestAudit)
-    const win = window.open('', '_blank')
-    if (!win) return
-    win.document.write(html)
-    win.document.close()
-    win.focus()
-    setTimeout(() => win.print(), 600)
+    let html: string
+    try {
+      html = generateAuditHTML(advisor, latestAudit)
+    } catch (err) {
+      console.error('[exportPDF] HTML generation failed:', err)
+      alert('Could not generate the report. Check the console for details.')
+      return
+    }
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const win = window.open(url, '_blank')
+    if (win) {
+      // Browser opened it — trigger print once loaded, then free the object URL
+      win.addEventListener('load', () => {
+        setTimeout(() => { win.print(); URL.revokeObjectURL(url) }, 400)
+      })
+    } else {
+      // Popup blocked — fall back to downloading the HTML file
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${advisor.name.replace(/\s+/g, '-')}-visibility-audit.html`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    }
   }, [advisor, latestAudit])
 
   // ── Run audit ─────────────────────────────────────────────────────
