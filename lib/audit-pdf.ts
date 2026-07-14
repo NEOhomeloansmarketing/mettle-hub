@@ -97,9 +97,9 @@ export function generateAuditHTML(advisor: Advisor, audit: VisibilityAudit): str
         <div class="section-header">Core Identity Conflicts</div>
         ${(rawConflicts as AuditConflict[]).map(c => `
           <div class="conflict-card">
-            <div class="conflict-field">${c.field}</div>
-            <div class="conflict-canonical">Canonical: <strong>${c.canonical}</strong></div>
-            ${c.issues.map(issue => `
+            <div class="conflict-field">${c.field ?? ''}</div>
+            <div class="conflict-canonical">Canonical: <strong>${c.canonical ?? ''}</strong></div>
+            ${(c.issues ?? []).map(issue => `
               <div class="conflict-issue">⚠ ${issue.platform}: <em>${issue.found}</em></div>
             `).join('')}
           </div>
@@ -133,6 +133,7 @@ export function generateAuditHTML(advisor: Advisor, audit: VisibilityAudit): str
     <div class="section">
       <div class="section-header">Visibility Score</div>
       ${Object.entries(breakdown).map(([key, val]) => {
+        if (!val || typeof val !== 'object') return ''
         const labels: Record<string, string> = {
           listingsHealth:        '1) Listings Health',
           reviews:               '2) Reviews & Reputation',

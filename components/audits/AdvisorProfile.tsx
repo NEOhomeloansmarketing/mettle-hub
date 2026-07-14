@@ -428,8 +428,9 @@ export function AdvisorProfile({ advisor: initial }: AdvisorProfileProps) {
     try {
       html = generateAuditHTML(advisor, latestAudit)
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
       console.error('[exportPDF] HTML generation failed:', err)
-      alert('Could not generate the report. Check the console for details.')
+      alert(`Could not generate the report.\n\n${msg}\n\nPlease screenshot this and send to your developer.`)
       return
     }
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
