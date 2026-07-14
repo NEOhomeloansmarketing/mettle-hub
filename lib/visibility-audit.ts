@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { Advisor, AdvisorChannel, AuditResult } from '@/lib/types'
+import { discoverChannels, type DiscoveredProfile } from '@/lib/discover-channels'
 
 async function fetchNapFormAsBase64(
   url: string,
@@ -41,6 +42,9 @@ export async function runVisibilityAudit(
 ): Promise<AuditResult> {
   const client = new Anthropic()
 
+  // Discover missing channels with real search URLs
+  const discoveredChannels = await discoverChannels(advisor, channels)
+
   const napForm = advisor.nap_form_url
     ? await fetchNapFormAsBase64(advisor.nap_form_url)
     : null
@@ -48,6 +52,15 @@ export async function runVisibilityAudit(
   const knownProfiles = channels.length
     ? channels.map(c => `- ${c.platform}: ${c.url}${c.label ? ` (${c.label})` : ''}`).join('\n')
     : 'No social profiles on record yet.'
+
+  const discoveredProfilesText = discoveredChannels.length
+    ? discoveredChannels
+        .map(
+          p =>
+            `- ${p.platform} [${p.confidence} confidence]: ${p.reason}\n  Search: ${p.searchUrl}${p.url !== p.searchUrl ? `\n  Profile URL: ${p.url}` : ''}`,
+        )
+        .join('\n')
+    : 'No missing channels detected.'
 
   const fallbackNap = [
     `Name: ${advisor.name}`,
@@ -76,16 +89,27 @@ ${napForm
     : `No NAP form uploaded. Use this profile data as the canonical NAP:\n${fallbackNap}`
   }
 
-KNOWN ONLINE PROFILES ON RECORD (these are the ONLY platforms to audit):
+KNOWN ONLINE PROFILES ON RECORD (currently managed):
 ${knownProfiles}
 
+DETECTED MISSING CHANNELS (likely to already exist but not in their active management list):
+${discoveredProfilesText}
+
 YOUR TASK:
-Audit each of the known profiles listed above against the canonical NAP. You are NOT recommending new platforms - only review what already exists. Identify what needs to be UPDATED or FIXED on the platforms they already have.
+1. Audit each KNOWN PROFILE for NAP accuracy, completeness, and brand consistency.
+2. Identify missing channels that LIKELY ALREADY EXIST (high-confidence detections like NMLS, Zillow, Realtor.com).
+3. Generate action items that tell this advisor EXACTLY WHAT TO DO to enhance visibility.
+
+CRITICAL - TWO TYPES OF ACTION ITEMS:
+A) FIX EXISTING - For platforms they already claim: specific fixes (NAP mismatches, outdated info, missing content)
+B) CLAIM MISSING - For high-confidence detected channels: guide them to find and claim/update the profile
 
 SCOPE RULES:
-- Only create action items for platforms listed in KNOWN ONLINE PROFILES.
-- Do NOT suggest creating new accounts on platforms not already listed.
-- Base all findings on the canonical NAP vs. the listed profile URLs.
+- Action items must be SPECIFIC and ACTIONABLE - never vague advice.
+- For existing profiles: "Update [field] from [current] to [correct]" - be precise.
+- For missing channels: "Search [URL provided] and claim the profile - update [specific field]"
+- Reference the detected channels and their search URLs for discovering missing profiles.
+- Prioritize by impact: NMLS and Google Business Profile first (highest traffic), then Zillow/Realtor (lead generation), then social/niche directories.
 
 WHAT TO CHECK ON EACH KNOWN PROFILE:
 1. NAP accuracy - does the name, address, phone, email, and title match canonical exactly?
@@ -97,45 +121,59 @@ WHAT TO CHECK ON EACH KNOWN PROFILE:
 7. AI search readiness - canonical entity signals, structured data, FAQ content
 8. Reviews - volume, recency, and response patterns visible from public profile
 
-SCORING (conservative - only award points with real evidence):
-- Listings Health /30: NAP accuracy across directory/listing profiles
-- Reviews & Reputation /20: review volume, recency, platform diversity, sentiment signals
-- Website Local Relevance /20: local keywords, service area pages, schema, mobile-friendliness
-- Brand & Entity Consistency /15: identical name/title/photo/employer on all known platforms
-- AI Search Readiness /15: canonical entity signals, structured data, FAQ content
+SCORING (0-100, accounting for both existing and missing channels):
+- Listings Health /25: NAP accuracy and completeness on known profiles + discovery of high-confidence missing channels
+- Reviews & Reputation /20: review volume, recency, platform diversity across all channels (known + detected)
+- Website Local Relevance /20: local keywords, service area pages, schema, mobile-friendliness on primary assets
+- Brand & Entity Consistency /20: identical name/title/photo/employer across all known platforms + alignment with missing channels
+- Channel Coverage /15: percentage of high-confidence channels claimed (NMLS, Google, Zillow, Realtor, LinkedIn, personal website)
+
+PENALTY for missing channels:
+- Not claiming NMLS profile when licensed: -5 points (mandatory for MLOs)
+- No Google Business Profile in service area: -3 points
+- Missing major directories (Zillow, Realtor for LOs): -2 points each
+- No LinkedIn: -1 point
+- Limited total platform diversity: -up to 5 points
 
 ACTION ITEMS - FORMAT RULES:
-- Numbered 1 through N, most urgent first
+- Numbered 1 through N, sorted by impact (highest impact first)
 - SHORT - one bold key term, then 1-2 tight sentences max
-- Only reference platforms from the known list above
-- Include the profile URL in the "url" field
-- Format: "Bold Key Term: One or two specific sentences telling them exactly what to fix and what the correct value should be."
-- Good example: "Update Facebook Title: Your Facebook page still shows 'Loan Officer at OldCompany.' Change it to 'Mortgage Advisor at NEO Home Loans'."
-- Bad example: "Consider updating your social profiles to reflect your current employer." (too vague)
+- SPECIFIC - include exact URLs, exact current values, exact replacement values
+- Format: "Bold Action: Specific instruction with exact steps and current vs. desired state."
+- Priority mapping: 1-3 = High Impact (NMLS, Google, main website), 4-6 = Medium Impact (Zillow, Realtor), 7+ = Lower Impact (social, niche)
+- Examples:
+  * GOOD (fix existing): "Claim NMLS Profile: Visit https://www.nmlsconsumeraccess.org/Individual/12345 and update your employer field from 'OldBank' to 'NEO Home Loans'. Add your current photo and ensure phone number is [correct number]."
+  * GOOD (claim missing): "Create Google Business Profile: Search yourself at https://business.google.com. If found, claim it and update hours, call-to-action, and add 3+ photos. If not found, create one for your service area."
+  * GOOD (update): "Fix LinkedIn Headline: Change from 'Loan Officer' to 'Mortgage Advisor at NEO Home Loans | NMLS #12345' to include your company and license number."
+  * BAD: "Update your profiles" (too vague)
 
 CONFLICTS - FORMAT RULES:
 - Only list conflicts found on the known profiles
 - Format each as a plain string: "Main conflict N: [Type] - [Platform] shows '[wrong value]' but canonical [field] is '[correct value]'"
 
-UNDISCOVERED CHANNEL DETECTION:
-Based on this advisor's name, NMLS number, location, niche, and the platforms NOT already in KNOWN ONLINE PROFILES, identify profiles that LIKELY ALREADY EXIST that they haven't claimed, forgot to submit, or don't know about.
+MISSING CHANNEL ANALYSIS:
+The system has identified these likely pre-existing profiles the advisor should manage. For each:
+- Verify the profile actually exists using the searchUrl provided
+- If found: claim it and update all fields (NAP, photo, title, company)
+- If not found: note in your analysis that it doesn't exist (rare for high-confidence channels)
+- Prioritize by confidence level and traffic potential
 
-Do NOT suggest creating new accounts. ONLY identify profiles that are likely to pre-exist based on:
-1. Industry-mandatory registrations - NMLS Consumer Access creates a public page for ALL licensed MLOs automatically (nmls consumer access). HIGH confidence for everyone.
-2. Auto-created profiles - Zillow, Realtor.com, Google sometimes auto-create profiles from NMLS registry data.
-3. Orphaned old-employer pages - LinkedIn history or bio hints at prior employer whose website still has their profile page.
-4. Niche directories - Medical professional niches have specific directories (doctor-facing, healthcare finance forums). Entrepreneur niche has business lending directories.
-5. Local market directories - BBB, local chamber of commerce, city-specific review sites common in their stated service area.
-6. Name-searchable platforms - If the advisor has a distinctive name, profiles created by third parties (reviewers, referral networks) may exist.
+Format for discoveredChannels output:
+{
+  "platform": "<Platform name exactly as shown in DETECTED MISSING CHANNELS list>",
+  "searchUrl": "<The exact search URL provided to find this profile>",
+  "likelyUrl": "<Predicted direct profile URL if pattern is known, or null>",
+  "confidence": "<High|Medium|Low - as shown in DETECTED MISSING CHANNELS>",
+  "reason": "<Why this advisor likely has this profile, based on their NMLS, location, niche>",
+  "action": "<Claim if exists|Verify if unsure|Update if found|Remove if shows old employer>"
+}
 
-For each discovered channel:
-- searchUrl: a direct search URL or platform search page to verify the profile (e.g. Google search for their name + platform)
-- likelyUrl: predicted URL if the platform has a predictable naming pattern (e.g. nmls consumer access uses the NMLS number), or null if unpredictable
-- confidence: "High" = auto-created or industry standard, "Medium" = common for their niche/market, "Low" = possible but variable
-- reason: one specific sentence about why this advisor in particular likely has this profile
-- action: "Claim" (exists, not yet actively managed), "Update" (may be stale/wrong info), "Remove" (likely shows old employer), "Verify" (check if it exists first)
+Return 5-12 items covering:
+- High-confidence (mandatory): NMLS, Google Business Profile, Zillow, Realtor.com
+- Medium-confidence (common): LinkedIn, LendingTree, Bankrate, Better.com
+- Low-confidence (niche): Yelp, BBB, Nextdoor, Facebook
 
-Return 4-8 items. Skip any platform already listed in KNOWN ONLINE PROFILES.
+Skip any platform already listed in KNOWN ONLINE PROFILES on record.
 
 Return ONLY raw JSON - no markdown, no code fences, no explanation. All fields required:
 
@@ -160,11 +198,11 @@ Return ONLY raw JSON - no markdown, no code fences, no explanation. All fields r
   "bestDifferenceLanguage": "<1 sentence. The single most differentiating thing about this advisor.>",
   "score": 0,
   "scoreBreakdown": {
-    "listingsHealth":        { "score": 0, "max": 30, "notes": "<2-3 specific sentences about what is present, what is missing, and why this score.>" },
-    "reviews":               { "score": 0, "max": 20, "notes": "<2-3 sentences about estimated volume, recency, and gaps.>" },
+    "listingsHealth":        { "score": 0, "max": 25, "notes": "<2-3 specific sentences about NAP accuracy, profile completeness, and discovered channels.>" },
+    "reviews":               { "score": 0, "max": 20, "notes": "<2-3 sentences about estimated volume, recency, and gaps across all platforms.>" },
     "websiteLocalRelevance": { "score": 0, "max": 20, "notes": "<2-3 sentences about website/advisor site assessment and local SEO signals.>" },
-    "brandConsistency":      { "score": 0, "max": 15, "notes": "<2-3 sentences about specific consistency issues found or likely present.>" },
-    "aiSearchReadiness":     { "score": 0, "max": 15, "notes": "<2-3 sentences about why AI tools would or would not surface this advisor.>" }
+    "brandConsistency":      { "score": 0, "max": 20, "notes": "<2-3 sentences about specific consistency issues found across all known and detected platforms.>" },
+    "channelCoverage":       { "score": 0, "max": 15, "notes": "<2-3 sentences about what % of high-confidence channels are claimed and updated.>" }
   },
   "actionItems": [
     {
