@@ -325,7 +325,8 @@ export interface AuditScoreBreakdown {
   websiteLocal?:           { score: number; max: number; notes: string }  // legacy key
   websiteLocalRelevance?:  { score: number; max: number; notes: string }  // new key
   brandConsistency:        { score: number; max: number; notes: string }
-  aiSearchReadiness:       { score: number; max: number; notes: string }
+  aiSearchReadiness?:      { score: number; max: number; notes: string }  // legacy key
+  channelCoverage?:        { score: number; max: number; notes: string }  // new key
 }
 
 export interface AuditActionItem {
