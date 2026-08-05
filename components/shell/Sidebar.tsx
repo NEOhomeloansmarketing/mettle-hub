@@ -31,6 +31,12 @@ const NAV_SECTIONS = [
     ],
   },
   {
+    section: 'Performance',
+    items: [
+      { id: 'conversion', label: 'Conversion', icon: 'conversion', href: '/conversion' },
+    ],
+  },
+  {
     section: 'Intelligence',
     items: [
       { id: 'agents', label: 'AI Agents',       icon: 'agent',  href: '/agents' },

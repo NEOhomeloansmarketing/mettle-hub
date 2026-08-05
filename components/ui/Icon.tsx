@@ -55,6 +55,7 @@ export function Icon({ name, size = 16, stroke = 1.6, className = '' }: IconProp
     case 'agent':        return <svg {...props}><rect x="4" y="9" width="16" height="12" rx="3"/><path d="M8 9V7a4 4 0 0 1 8 0v2"/><circle cx="9" cy="15" r="1.5"/><circle cx="15" cy="15" r="1.5"/><path d="M9 19h6"/></svg>
     case 'play':         return <svg {...props}><polygon points="5 3 19 12 5 21 5 3"/></svg>
     case 'chart-bar':    return <svg {...props}><path d="M3 20h18"/><rect x="4" y="12" width="3" height="8"/><rect x="10.5" y="6" width="3" height="14"/><rect x="17" y="3" width="3" height="17"/></svg>
+    case 'conversion':   return <svg {...props}><path d="M3 20h18"/><path d="M3 20 9 10l4 5 3-7 5 6"/><circle cx="9" cy="10" r="1.5" fill="currentColor"/><circle cx="13" cy="15" r="1.5" fill="currentColor"/><circle cx="16" cy="8" r="1.5" fill="currentColor"/></svg>
     case 'chart-line':   return <svg {...props}><path d="M3 20h18"/><path d="M3 20 8 13l4 3 4-7 5 4"/></svg>
     case 'users':        return <svg {...props}><circle cx="8" cy="8" r="3.2"/><path d="M2 20c0-3 2.5-5 6-5s6 2 6 5"/><circle cx="17" cy="7" r="2.5"/><path d="M22 19c0-2-1.6-3.5-4-3.5"/></svg>
     case 'menu':         return <svg {...props}><path d="M4 6h16M4 12h16M4 18h16"/></svg>
