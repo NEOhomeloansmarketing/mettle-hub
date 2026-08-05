@@ -10,7 +10,6 @@ function admin() {
 }
 
 // GET /api/conversion?month=2026-08
-// Returns all team members + their conversion_entries for the month
 export async function GET(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -20,7 +19,7 @@ export async function GET(req: NextRequest) {
 
   const sb = admin()
   const [{ data: team }, { data: entries }] = await Promise.all([
-    sb.from('accounts').select('id, name, email').eq('status', 'approved').order('name'),
+    sb.from('profiles').select('id, full_name, email').eq('status', 'approved').order('full_name'),
     sb.from('conversion_entries').select('*').eq('month', month),
   ])
 
@@ -30,7 +29,7 @@ export async function GET(req: NextRequest) {
     const e = entryMap[t.id] ?? { leads: 0, apps: 0, funded: 0 }
     return {
       user_id: t.id,
-      name: t.name,
+      name: t.full_name,
       email: t.email,
       leads: e.leads ?? 0,
       apps: e.apps ?? 0,
@@ -42,14 +41,13 @@ export async function GET(req: NextRequest) {
 }
 
 // POST /api/conversion — admin updates apps/funded for a person
-// Body: { user_id, month, apps, funded }
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: account } = await supabase.from('accounts').select('role').eq('id', user.id).single()
-  if (account?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  if (profile?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { user_id, month, apps, funded } = await req.json()
   if (!user_id || !month) return NextResponse.json({ error: 'user_id and month required' }, { status: 400 })

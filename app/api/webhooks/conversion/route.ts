@@ -42,13 +42,13 @@ export async function POST(req: NextRequest) {
   const sb = admin()
 
   const names = entries.map(e => e.name.trim())
-  const { data: accounts } = await sb
-    .from('accounts')
-    .select('id, name')
-    .in('name', names)
+  const { data: profiles } = await sb
+    .from('profiles')
+    .select('id, full_name')
+    .in('full_name', names)
 
   const nameToId = Object.fromEntries(
-    (accounts ?? []).map((a: any) => [a.name.trim(), a.id])
+    (profiles ?? []).map((p: any) => [p.full_name.trim(), p.id])
   )
 
   const results: { name: string; status: string }[] = []
