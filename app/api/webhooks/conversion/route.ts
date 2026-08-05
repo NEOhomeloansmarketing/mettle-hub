@@ -11,23 +11,17 @@ function admin() {
 /**
  * POST /api/webhooks/conversion
  *
- * Called by your external lead-tracking system with daily lead counts per person.
- * Each call ADDS to the running monthly total — call it as often as needed.
- *
  * Headers:
  *   x-api-key: <CONVERSION_WEBHOOK_SECRET>
  *
  * Body:
  * {
- *   "date": "2026-08-05",          // used to derive the month YYYY-MM
+ *   "date": "2026-08-05",
  *   "entries": [
- *     { "email": "user@neo.com", "leads": 3 },
- *     { "email": "other@neo.com", "leads": 1 }
+ *     { "name": "Matt Smith", "leads": 3 },
+ *     { "name": "Ben Kyle",   "leads": 1 }
  *   ]
  * }
- *
- * Response:
- * { "month": "2026-08", "results": [{ "email": "...", "status": "ok" | "no_account" | "error:..." }] }
  */
 export async function POST(req: NextRequest) {
   const apiKey = req.headers.get('x-api-key')
@@ -35,7 +29,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  let body: { date: string; entries: { email: string; leads: number }[] }
+  let body: { date: string; entries: { name: string; leads: number }[] }
   try { body = await req.json() }
   catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }) }
 
@@ -44,28 +38,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'date and entries[] required' }, { status: 400 })
   }
 
-  const month = date.slice(0, 7) // YYYY-MM
+  const month = date.slice(0, 7)
   const sb = admin()
 
-  // Resolve emails → account IDs in one query
-  const emails = entries.map(e => e.email.toLowerCase().trim())
+  const names = entries.map(e => e.name.trim())
   const { data: accounts } = await sb
     .from('accounts')
-    .select('id, email')
-    .in('email', emails)
+    .select('id, name')
+    .in('name', names)
 
-  const emailToId = Object.fromEntries(
-    (accounts ?? []).map((a: any) => [a.email.toLowerCase(), a.id])
+  const nameToId = Object.fromEntries(
+    (accounts ?? []).map((a: any) => [a.name.trim(), a.id])
   )
 
-  const results: { email: string; status: string }[] = []
+  const results: { name: string; status: string }[] = []
 
   for (const entry of entries) {
-    const email  = entry.email.toLowerCase().trim()
-    const userId = emailToId[email]
-    if (!userId) { results.push({ email, status: 'no_account' }); continue }
+    const name   = entry.name.trim()
+    const userId = nameToId[name]
+    if (!userId) { results.push({ name, status: 'no_account' }); continue }
 
-    // Fetch existing row so we can add to the lead count
     const { data: existing } = await sb
       .from('conversion_entries')
       .select('leads, apps, funded')
@@ -84,7 +76,7 @@ export async function POST(req: NextRequest) {
       { onConflict: 'user_id,month', ignoreDuplicates: false },
     )
 
-    results.push({ email, status: error ? `error: ${error.message}` : 'ok' })
+    results.push({ name, status: error ? `error: ${error.message}` : 'ok' })
   }
 
   return NextResponse.json({ month, results })
